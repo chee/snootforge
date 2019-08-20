@@ -1,0 +1,106 @@
+* {
+	box-sizing: border-box;
+}
+
+:root {
+	--background: #fff2f5;
+	--color: #af0a41;
+	--repo-name-color: #333;
+	--font-stack: hack, fira code, source code pro, monospace;
+	--readme-font-stack: avenir next, avenir, sans-serif;
+	--readme-background: white;
+	--readme-color: #000;
+	--readme-pre-background: var(--background);
+	--readme-pre-color: var(--color);
+	--font-base-size: 1.3em;
+	background: var(--background);
+	color: var(--color);
+	font-family: var(--font-stack);
+	font-size: var(--font-base-size);
+}
+
+.main-header {
+	font-size: 2em;
+	display: flex;
+	width: 100%;
+	align-items: baseline;
+}
+
+.main-header > * + * {
+	margin-left: 0.5em;
+}
+
+.main-header__logo {
+	height: 1em;
+	width: 1em;
+	background: url("/logo.svg");
+	background-size: contain;
+}
+
+.main-header__name {
+	font-weight: 500;
+	letter-spacing: -2px;
+	font-family: avenir next, avenir, source sans pro, sans-serif;
+}
+
+.repo-summary {
+	display: flex;
+	flex-direction: column;
+	margin: 1em;
+	padding: 1em;
+	line-height: 1.4;
+}
+
+.repo-summary > * + * {
+	margin-top: .2em;
+}
+
+.repo-summary-name {
+	margin: 0;
+	font-size: 1em;
+	color: var(--repo-name-color);
+}
+
+.repo-summary-name__user {
+	font-weight: 300;
+}
+
+.repo-summary__anchor {
+	color: var(--repo-name-color);
+}
+
+.repo-summary-description {
+	margin: 0;
+	font-size: 0.8em;
+}
+
+.repo-summary__last-update {
+	font-size: 0.6em;
+	font-style: italic;
+}
+
+.readme {
+	background: var(--readme-background);
+	color: var(--readme-color);
+	font-family: var(--readme-font-stack);
+	padding: 1em 2em;
+	border-top: 2px solid var(--color);
+}
+
+.readme pre {
+	overflow: auto;
+	background: var(--readme-pre-background);
+	color: var(--readme-pre-color);
+	padding: 1em;
+}
+
+.visuallyhidden {
+	border: 0;
+	clip: rect(0 0 0 0);
+	height: 1px;
+	margin: -1px;
+	overflow: hidden;
+	padding: 0;
+	position: absolute;
+	width: 1px;
+}
