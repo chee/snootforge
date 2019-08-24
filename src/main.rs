@@ -8,20 +8,23 @@ extern crate hyper;
 extern crate hyperlocal;
 extern crate maud;
 extern crate mime;
+extern crate syntect;
 
 use crate::futures::Future;
 use hyper::service::service_fn;
 use hyper::{header, Body, Request, Response, StatusCode};
 use maud::{html, Markup};
+use missing::Missing;
 use std::{env, fs, io, path};
 
 mod markup;
+mod missing;
 mod page;
 mod repository;
 mod tree;
 mod user;
 
-fn respond(markup: Result<Markup, StatusCode>) -> Response<Body> {
+fn respond(markup: Result<Markup, Missing>) -> Response<Body> {
     match markup {
         Ok(markup) => {
             let body = markup::render(html! {
@@ -37,11 +40,29 @@ fn respond(markup: Result<Markup, StatusCode>) -> Response<Body> {
                 .body(Body::from(body))
                 .expect("Failed to construct the response")
         }
-        Err(status) => Response::builder()
-            .status(status)
-            .body(Body::from("sorry"))
-            .expect("failed"),
+        Err(missing) => match missing {
+            Missing::Sometime => Response::builder()
+                .status(StatusCode::NOT_IMPLEMENTED)
+                .body(Body::from("sorry"))
+                .expect("failed"),
+            Missing::Nowhere => Response::builder()
+                .status(StatusCode::PAYMENT_REQUIRED)
+                .body(Body::from("sorry"))
+                .expect("failed"),
+            Missing::Elsewhere(location) => Response::builder()
+                .header(header::LOCATION, location)
+                .status(StatusCode::FOUND)
+                .body(Body::from("sorry"))
+                .expect("failed to redirect"),
+        },
     }
+}
+
+fn redirect(location: String) -> Response<Body> {
+    Response::builder()
+        .header(header::LOCATION, location)
+        .body(Body::from(""))
+        .expect("tried to make a redirect and didn't")
 }
 
 fn get_git_root() -> path::PathBuf {
@@ -127,13 +148,14 @@ fn route(
                 3 => None,
                 _ => Some(&uri_parts[4..]),
             };
+
             match *page_name {
                 "tree" => respond(page::tree(user_name, project_name, target, rest)),
                 "log" => respond(page::log(user_name, project_name, target, rest)),
                 "blob" => respond(page::blob(user_name, project_name, target, rest)),
                 "commit" => respond(page::commit(user_name, project_name, target, rest)),
                 "branches" => respond(page::branches(user_name, project_name, target, rest)),
-                _ => respond(Err(StatusCode::NOT_FOUND)),
+                _ => respond(Err(Missing::Nowhere)),
             }
         }
     };

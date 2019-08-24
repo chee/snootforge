@@ -2,6 +2,10 @@ use crate::page::Page;
 use crate::repository::Repository;
 use crate::tree::{Tree, TreeEntry, TreeEntryKind};
 use crate::user::User;
+use syntect::highlighting::{Color, Style, ThemeSet};
+use syntect::html::tokens_to_classed_spans;
+use syntect::parsing::SyntaxSet;
+use syntect::util::LinesWithEndings;
 
 use chrono::prelude::*;
 use chrono_humanize::HumanTime;
@@ -142,19 +146,23 @@ pub fn blob_header(directory: &str, directory_url: &str, file_name: &str) -> Mar
     let open_folder_icon = maud::PreEscaped("&#x1f4c2;");
     html! {
         header.blob-header {
-            .tree-entry {
+            .tree-entry.tree-entry--parent {
                 .tree-entry-icon aria-hidden=(true) {
                     (open_folder_icon)
                 }
-                a.tree-entry-name href=(directory_url) {
-                    ("..")
+                h3.tree-entry-name.tree-entry-name--parent {
+                    a.tree-entry-name__anchor href=(directory_url) {
+                        ("..")
+                    }
                 }
             }
             h2.blob-header__heading {
-                span.blob-header__breadcrumb {
-                    (directory)
+                @if directory.len() > 0 {
+                    span.blob-header__breadcrumb {
+                        (directory)
+                    }
+                    "/"
                 }
-                "/"
                 span.blob-header__filename {
                     (file_name)
                 }
@@ -163,13 +171,45 @@ pub fn blob_header(directory: &str, directory_url: &str, file_name: &str) -> Mar
     }
 }
 
-pub fn blob(blob: String, _page: &Page) -> Markup {
-    let lines = blob.lines().map(|line| maud::PreEscaped(line));
+pub fn blob(subpath: &std::path::PathBuf, blob: String, _page: &Page) -> Markup {
+    let syntaxes = SyntaxSet::load_defaults_newlines();
+
+    let syntax = match subpath.extension() {
+        Some(extension) => syntaxes
+            .find_syntax_by_token(extension.to_str().unwrap())
+            .unwrap_or(syntaxes.find_syntax_plain_text()),
+        _ => syntaxes
+            .find_syntax_by_token(subpath.to_str().unwrap())
+            .unwrap_or(
+                syntaxes
+                    .find_syntax_by_token(&subpath.to_str().unwrap()[1..])
+                    .unwrap_or_else(|| {
+                        let lines = blob.lines().collect::<Vec<&str>>();
+                        let first_line = lines.first();
+                        syntaxes
+                            .find_syntax_by_first_line(first_line.unwrap())
+                            .unwrap_or(syntaxes.find_syntax_plain_text())
+                    }),
+            ),
+    };
+    let themes = ThemeSet::load_defaults();
+    let theme = &themes.themes["InspiredGitHub"];
+    let mut h = syntect::easy::HighlightLines::new(syntax, theme);
+    let lines = LinesWithEndings::from(&blob).map(|line| {
+        let ranges = h.highlight(line, &syntaxes);
+        syntect::html::styled_line_to_highlighted_html(
+            &ranges,
+            syntect::html::IncludeBackground::No,
+        )
+    });
+
     html! {
         pre.blob-content {
             @for line in lines {
                 code.blob-content__line {
-                    (line)
+                    span.blob-content__code {
+                        (maud::PreEscaped(line))
+                    }
                 }
             }
         }
@@ -257,12 +297,14 @@ pub fn tree(tree: &Tree, _page: &Page) -> Markup {
     html! {
         ul.tree {
             @if tree.subtree {
-                li.tree-entry {
+                li.tree-entry.tree-entry--parent {
                     .tree-entry-icon aria-hidden=(true) {
                         (open_folder_icon)
                     }
-                    a.tree-entry-name href=("..") {
-                        ("..")
+                    h3.tree-entry-name.tree-entry-name--parent {
+                        a.tree-entry-name__anchor href=("..") {
+                            ("..")
+                        }
                     }
                 }
             }

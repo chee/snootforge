@@ -297,8 +297,13 @@
 	grid-template-columns: 2em 3fr;
 	grid-template-rows: auto 1fr auto;
 	grid-template-areas: "icon name"
-						 "icon summary"
-						 "icon date";
+                          "icon summary"
+		                "icon date";
+}
+
+.tree-entry--parent {
+	grid-template-areas: "icon name"
+                          "icon name";
 }
 
 .tree-entry:hover {
@@ -339,6 +344,7 @@
 	color: inherit;
 	text-decoration: none;
 	display: block;
+	height: 100%;
 }
 
 .tree-entry-name__anchor:hover {
@@ -373,27 +379,34 @@
 .blob-content {
 	margin: 0;
 	counter-reset: blob-line;
-	white-space: pre-wrap;
+	white-space: pre;
 	font-family: var(--monospace-font-stack);
 	background: var(--blob-background);
 	padding: 1em;
 	border: 1px solid currentColor;
 	border-radius: 0 0 4px 4px;
 	font-size: 0.8em;
+	margin-bottom: 1em;
+	overflow: auto;
 }
 
 .blob-content__line {
 	counter-increment: blob-line;
-	display: block;
+	display: grid;
 	line-height: 1.2em;
+	/* this will cause a visual bug after 9999 lines. fine with that */
+	grid-template-columns: 5ex 1fr;
+	grid-template-areas: "lineno line";
+	grid-area: line;
+	grid-column-gap: 1ex;
 }
 
 .blob-content__line::before {
+	grid-area: lineno;
 	user-select: none;
 	content: counter(blob-line) " ";
 	width: 5ex;
 	display: inline-block;
 	text-align: right;
 	opacity: 0.5;
-	margin-right: 1ex;
 }

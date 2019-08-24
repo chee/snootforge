@@ -1,6 +1,6 @@
+use crate::missing::Missing;
 use crate::repository::Repository;
 use chrono::prelude::*;
-use hyper::StatusCode;
 use std::cmp::Ordering;
 use std::ops::Add;
 use std::path;
@@ -79,16 +79,16 @@ impl TreeEntry<'_> {
         }
     }
 
-    pub fn content(&self) -> Result<&str, hyper::StatusCode> {
+    pub fn content(&self) -> Result<&str, Missing> {
         match self.kind {
             TreeEntryKind::Blob => {
                 let content = self.blob.as_ref().unwrap().content();
                 match std::str::from_utf8(content) {
                     Ok(string) => Ok(string),
-                    _ => Err(hyper::StatusCode::BAD_REQUEST),
+                    _ => Err(Missing::Nowhere),
                 }
             }
-            _ => Err(hyper::StatusCode::BAD_REQUEST),
+            _ => Err(Missing::Nowhere),
         }
     }
 
@@ -142,7 +142,7 @@ impl Tree<'_, '_, '_> {
         subpath: Option<&path::PathBuf>,
         tree: git2::Tree<'a>,
         repo: &'b Repository,
-    ) -> Result<Tree<'a, 'b, 'b>, StatusCode> {
+    ) -> Result<Tree<'a, 'b, 'b>, Missing> {
         let mut entries: Vec<TreeEntry> = vec![];
         let mut log = repo.log(Some(refname))?;
         log.reverse();
@@ -201,25 +201,22 @@ impl Tree<'_, '_, '_> {
         })
     }
 
-    pub fn get_blob(&self, target: Option<&path::PathBuf>) -> Result<String, StatusCode> {
-        match target {
-            Some(path) => Ok(std::str::from_utf8(
-                self.tree
-                    .get_path(path)
-                    .unwrap()
-                    .to_object(&self.repo.git2)
-                    .unwrap()
-                    .into_blob()
-                    .unwrap()
-                    .content(),
-            )
-            .unwrap()
-            .to_owned()),
-            None => Err(StatusCode::PAYMENT_REQUIRED),
+    pub fn get_blob(&self, target: Option<&path::PathBuf>) -> Result<String, Missing> {
+        if let Some(target_path) = target {
+            if let Ok(path) = self.tree.get_path(target_path) {
+                if let Ok(object) = path.to_object(&self.repo.git2) {
+                    if let Ok(blob) = object.into_blob() {
+                        if let Ok(content) = std::str::from_utf8(blob.content()) {
+                            return Ok(content.to_owned());
+                        }
+                    }
+                }
+            }
         }
+        Err(Missing::Nowhere)
     }
 
-    pub fn url_for(&self, path: Option<&str>) -> Result<String, StatusCode> {
+    pub fn url_for(&self, path: Option<&str>) -> Result<String, Missing> {
         let repo_url = self.repo.url();
         match path {
             Some(path) => Ok(repo_url
@@ -228,7 +225,7 @@ impl Tree<'_, '_, '_> {
                 .add("/")
                 .add(path)
                 .to_owned()),
-            None => Err(StatusCode::PAYMENT_REQUIRED),
+            None => Err(Missing::Nowhere),
         }
     }
 }
