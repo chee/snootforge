@@ -1,10 +1,11 @@
-use crate::user::User;
-
+use crate::tree::{Tree, TreeEntry, TreeEntryKind};
 use chrono::prelude::*;
+use hyper::StatusCode;
 use std::{fmt, fs, io, path, str};
 
 pub struct Repository {
-    git2: git2::Repository,
+    // TODO make this unnesc
+    pub git2: git2::Repository,
     pub path: String,
     pub user_name: String,
     pub name: String,
@@ -30,7 +31,12 @@ impl Repository {
             return Err(io::Error::last_os_error());
         }
         let repo = repo.unwrap();
-        let name = repo_path.file_stem().unwrap().to_str().unwrap_or("no name").to_string();
+        let name = repo_path
+            .file_stem()
+            .unwrap()
+            .to_str()
+            .unwrap_or("no name")
+            .to_string();
         let description_path = repo_path.join("description");
         let description = match fs::read_to_string(description_path) {
             Ok(string) => Some(string),
@@ -41,76 +47,162 @@ impl Repository {
             git2: repo,
             name,
             description,
-            path: repo_path.to_str().unwrap().to_owned()
+            path: repo_path.to_str().unwrap().to_owned(),
         })
     }
 
-    pub fn open_user_project (user_name: &str, project_name: &str) -> Result<Repository, io::Error> {
+    pub fn open_user_project(
+        user_name: &str,
+        project_name: &str,
+    ) -> Result<Repository, StatusCode> {
         let mut repo_path = super::get_git_root();
         repo_path.push(user_name);
         repo_path.push(format!("{}.git", project_name));
-        Repository::open(user_name, &repo_path)
-    }
-
-    pub fn head(&self) -> Option<git2::Reference> {
-        if let Ok(head) = self.git2.head() {
-            Some(head)
-        } else {
-            None
+        match Repository::open(user_name, &repo_path) {
+            Ok(repo) => Ok(repo),
+            Err(_) => Err(StatusCode::NOT_FOUND),
         }
     }
 
-    pub fn last_commit(&self) -> Option<git2::Commit> {
-        self.head().and_then(|head| {
-            if let Ok(commit) = head.peel_to_commit() {
-                Some(commit)
-            } else {
-                None
-            }
-        })
+    pub fn head(&self) -> Result<git2::Reference, StatusCode> {
+        match self.git2.head() {
+            Ok(head) => Ok(head),
+            Err(_) => Err(StatusCode::NOT_FOUND),
+        }
     }
 
-    pub fn last_update(&self) -> Option<DateTime<Utc>> {
-        self.last_commit().and_then(|commit| {
-            let seconds_since_epoch = commit.time().seconds();
-            Some(Utc.timestamp(seconds_since_epoch, 0))
-        })
+    pub fn last_commit(&self) -> Result<git2::Commit, StatusCode> {
+        match self.head()?.peel_to_commit() {
+            Ok(commit) => Ok(commit),
+            Err(_) => Err(StatusCode::NOT_FOUND),
+        }
     }
 
-    pub fn user_url (&self) -> String {
+    pub fn last_update(&self) -> Result<DateTime<Utc>, StatusCode> {
+        let commit = self.last_commit()?;
+        let seconds_since_epoch = commit.time().seconds();
+        Ok(Utc.timestamp(seconds_since_epoch, 0))
+    }
+
+    pub fn user_url(&self) -> String {
         format!("/{}", self.user_name)
     }
 
-    pub fn url (&self) -> String {
+    pub fn url(&self) -> String {
         format!("/{}/{}", self.user_name, self.name)
     }
 
-    pub fn tree (&self) -> Result<git2::Tree, git2::Error> {
-        self.head().unwrap().peel_to_tree()
+    pub fn log(&self, refname: Option<&str>) -> Result<Vec<git2::Commit>, StatusCode> {
+        let refname = self.get_refname(refname)?;
+        let reff = self.get_ref(&refname)?;
+        let mut walk = match self.git2.revwalk() {
+            Ok(walk) => walk,
+            Err(_) => return Err(StatusCode::NOT_FOUND),
+        };
+        let head_commit = match reff.peel_to_commit() {
+            Ok(commit) => commit,
+            Err(_) => return Err(StatusCode::NOT_FOUND),
+        };
+        walk.push(head_commit.id()).unwrap_or_default();
+        walk.set_sorting(git2::Sort::TOPOLOGICAL);
+        let mut commits = vec![];
+        for commit in walk {
+            let commit = match commit {
+                Ok(commit) => commit,
+                Err(_) => return Err(StatusCode::NOT_FOUND),
+            };
+            let commit = match self.git2.find_commit(commit) {
+                Ok(commit) => commit,
+                Err(_) => return Err(StatusCode::NOT_FOUND),
+            };
+            commits.push(commit);
+        }
+        Ok(commits)
     }
 
-    pub fn find_file (&self, file: &str) -> Option<String> {
-        if let Ok(tree) = self.tree() {
-            if let Ok(entry) = tree.get_path(path::Path::new(file)) {
-                if let Ok(object) = entry.to_object(&self.git2) {
-                    if let Ok(blob) = object.peel_to_blob() {
-                        if let Ok(string) = str::from_utf8(blob.content()) {
-                            return Some(string.to_owned())
-                        }
+    fn get_refname(&self, refname: Option<&str>) -> Result<String, StatusCode> {
+        let head = self.head()?;
+        let shorthead = head.shorthand().unwrap_or_default();
+        Ok(refname.unwrap_or(shorthead).to_owned())
+    }
+
+    fn get_ref(&self, refname: &str) -> Result<git2::Reference, StatusCode> {
+        match self.git2.resolve_reference_from_short_name(refname) {
+            Ok(reff) => Ok(reff),
+            Err(_) => return Err(StatusCode::NOT_FOUND),
+        }
+    }
+
+    pub fn tree(
+        &self,
+        refname: Option<&str>,
+        subpath: Option<&path::PathBuf>,
+    ) -> Result<crate::tree::Tree, StatusCode> {
+        let refname = self.get_refname(refname)?;
+        let reff = self.get_ref(&refname)?;
+        let tree = match reff.peel_to_tree() {
+            Ok(tree) => tree,
+            Err(_) => return Err(StatusCode::NOT_FOUND),
+        };
+
+        let tree = match subpath {
+            Some(subpath) => {
+                if subpath == &path::PathBuf::new() {
+                    tree
+                } else {
+                    match tree.get_path(subpath) {
+                        Ok(entry) => match entry.to_object(&self.git2) {
+                            Ok(object) => match object.into_tree() {
+                                Ok(tree) => tree,
+                                _ => return Err(StatusCode::PAYMENT_REQUIRED),
+                            },
+                            Err(_) => return Err(StatusCode::PAYMENT_REQUIRED),
+                        },
+                        Err(_) => return Err(StatusCode::PAYMENT_REQUIRED),
                     }
                 }
             }
-        }
-        None
+            None => tree,
+        };
+
+        Tree::new(&refname, subpath, tree, &self)
     }
 
-    pub fn readme (&self) -> Option<String> {
-        let readme_names = ["readme.md", "README.md", "readme", "README"];
-        for readme_name in &readme_names {
-            if let Some(readme) = self.find_file(readme_name) {
-                return Some(readme)
+    // pub fn find_file(
+    //     &self,
+    //     refname: Option<&str>,
+    //     subpath: Option<&path::PathBuf>,
+    // ) -> Result<std::fs::File, StatusCode> {
+    //     let tree = self.tree(refname, subpath)?;
+
+    //     if let Ok(tree) = self.tree(None, None) {
+    //         if let Ok(entry) = tree.get_path(path::Path::new(file)) {
+    //             if let Ok(object) = entry.to_object(&self.git2) {
+    //                 if let Ok(blob) = object.peel_to_blob() {
+    //                     if let Ok(string) = str::from_utf8(blob.content()) {
+    //                         return Some(string.to_owned());
+    //                     }
+    //                 }
+    //             }
+    //         }
+    //     }
+    //     None
+    // }
+
+    pub fn readme<'a>(&'a self, tree: &'a Tree) -> Result<&'a str, StatusCode> {
+        let readme_names = [
+            "readme.md".to_string(),
+            "README.md".to_string(),
+            "readme".to_string(),
+            "README".to_string(),
+        ];
+        for entry in tree.entries.iter() {
+            let entry: &TreeEntry = entry;
+            let name = &entry.name;
+            if readme_names.contains(&name) && entry.kind == TreeEntryKind::Blob {
+                return entry.content();
             }
         }
-        None
+        Err(StatusCode::NOT_FOUND)
     }
 }
