@@ -15,7 +15,6 @@ use hyper::{header, Body, Request, Response, StatusCode};
 use maud::{html, Markup};
 use std::{env, fs, io, path};
 
-mod blob;
 mod markup;
 mod page;
 mod repository;
