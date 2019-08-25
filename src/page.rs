@@ -45,10 +45,10 @@ fn get_user_root(name: &str) -> path::PathBuf {
 
 pub fn user(name: &str) -> Result<Markup, Missing> {
     let user = User::from_path(&get_user_root(name));
-    if user.is_err() {
-        return Err(user.unwrap_err());
-    }
-    let user = user.unwrap();
+    let user = match user {
+        Ok(user) => user,
+        Err(error) => return Err(error),
+    };
     Ok(html! {
         (markup::user_header(&user, &Page::User))
         (markup::user_repos(&user, &Page::User))
@@ -215,14 +215,18 @@ pub fn blob(
         }
     };
     let subpath = subpath.unwrap();
+    let file_extension = subpath
+        .extension()
+        .unwrap_or(subpath.file_name().unwrap_or_default())
+        .to_str();
     let directory = subpath.parent().unwrap().to_str();
     let directory_url = tree.url_for(directory);
     let file_name = rest.unwrap_or(&[]).last();
     Ok(html! {
-        (markup::project_header(&repo, &Page::Log))
+        (markup::project_header(&repo, &Page::Blob))
         article.blob {
             (markup::blob_header(directory.unwrap(), &directory_url.unwrap(), file_name.unwrap()))
-            (markup::blob(&subpath, blob, &Page::Blob))
+            (markup::blob(file_extension.unwrap(), blob, &Page::Blob))
         }
     })
 }

@@ -7,7 +7,7 @@
 	--background: #fff2f5;
 	--color: #af0a41;
 	--repo-name-color: #333;
-	--monospace-font-stack: hack, fira code, source code pro, monospace;
+	--monospace-font-stack: "Operator Mono", hack, fira code, source code pro, monospace;
 	--sans-font-stack: avenir next, avenir, sans-serif;
 	--font-stack: var(--sans-font-stack);
 	--readme-font-stack: var(--sans-font-stack);
@@ -27,12 +27,15 @@
 	--tree-entry-hover-background: #fffcfe;
 	--tree-entry-name-color: #2a61af;
 	--tree-entry-summary-color: #333;
-	--blob-background: white;
-	--blob-color: var(--color);
+	--blob-background: #f9fcff;
+	--blob-color: #086F8A;
+	--blob-line-numbers: #abc;
 	background: var(--background);
 	color: var(--color);
 	font-family: var(--font-stack);
 	font-size: var(--font-base-size);
+	tab-size: 4;
+	-moz-tab-size: 4;
 }
 
 .main-header {
@@ -116,6 +119,11 @@
 	color: var(--readme-code-color);
 	font-family: var(--monospace-font-stack);
 	padding: 1em;
+	font-size: 0.8em;
+}
+
+.readme pre code {
+	font-family: var(--monospace-font-stack);
 }
 
 .readme :not(pre) code {
@@ -388,27 +396,22 @@
 	font-size: 0.8em;
 	margin-bottom: 1em;
 	overflow: auto;
+	width: 100%;
 }
 
 .blob-content__line {
 	counter-increment: blob-line;
-	display: grid;
 	line-height: 1.2em;
 	/* this will cause a visual bug after 9999 lines. fine with that */
-	grid-template-columns: 5ex 1fr;
-	grid-template-areas: "lineno line";
-	grid-area: line;
-	grid-column-gap: 1ex;
 }
 
 .blob-content__line::before {
-	grid-area: lineno;
 	user-select: none;
 	content: counter(blob-line) " ";
+	color: var(--blob-line-numbers);
 	width: 5ex;
 	display: inline-block;
 	text-align: right;
-	opacity: 0.5;
 }
 
 .refs {

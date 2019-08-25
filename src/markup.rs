@@ -1,16 +1,15 @@
+use crate::highlight;
 use crate::page::Page;
 use crate::repository::Repository;
 use crate::tree::{Tree, TreeEntry, TreeEntryKind};
 use crate::user::User;
-use syntect::highlighting::ThemeSet;
-use syntect::parsing::SyntaxSet;
-use syntect::util::LinesWithEndings;
-
 use chrono::prelude::*;
 use chrono_humanize::HumanTime;
-use comrak::{markdown_to_html, ComrakOptions};
+use comrak::nodes::{AstNode, NodeHtmlBlock, NodeValue};
+use comrak::{format_html, parse_document, ComrakOptions};
 use maud::{html, Markup, DOCTYPE};
 use std::ops::Add;
+use typed_arena::Arena;
 
 pub fn render(markup: Markup) -> String {
     format!("{}", markup.into_string())
@@ -23,6 +22,8 @@ pub fn head(title: &str) -> Markup {
         meta charset="utf-8";
         link rel="stylesheet" href="/normalize.css";
         link rel="stylesheet" href="/styles.css";
+        link rel="stylesheet" href="/blob-theme.css";
+        link rel="stylesheet" href="/custom.css";
         title {(title)}
         header.main-header {
             a.main-header__anchor href="/" {
@@ -170,48 +171,28 @@ pub fn blob_header(directory: &str, directory_url: &str, file_name: &str) -> Mar
     }
 }
 
-pub fn blob(subpath: &std::path::PathBuf, blob: String, _page: &Page) -> Markup {
-    let syntaxes = SyntaxSet::load_defaults_newlines();
-
-    let syntax = match subpath.extension() {
-        Some(extension) => syntaxes
-            .find_syntax_by_token(extension.to_str().unwrap())
-            .unwrap_or(syntaxes.find_syntax_plain_text()),
-        _ => syntaxes
-            .find_syntax_by_token(subpath.to_str().unwrap())
-            .unwrap_or(
-                syntaxes
-                    .find_syntax_by_token(&subpath.to_str().unwrap()[1..])
-                    .unwrap_or_else(|| {
-                        let lines = blob.lines().collect::<Vec<&str>>();
-                        let first_line = lines.first();
-                        syntaxes
-                            .find_syntax_by_first_line(first_line.unwrap())
-                            .unwrap_or(syntaxes.find_syntax_plain_text())
-                    }),
-            ),
-    };
-    let themes = ThemeSet::load_defaults();
-    let theme = &themes.themes["base16-ocean.light"];
-    let mut h = syntect::easy::HighlightLines::new(syntax, theme);
-    let lines = LinesWithEndings::from(&blob).map(|line| {
-        let ranges = h.highlight(line, &syntaxes);
-        syntect::html::styled_line_to_highlighted_html(
-            &ranges,
-            syntect::html::IncludeBackground::No,
-        )
-    });
-
+pub fn blob(token: &str, blob: String, _page: &Page) -> Markup {
+    let blob = highlight::highlight(token, &blob);
+    let lines = blob.lines();
     html! {
         pre.blob-content {
             @for line in lines {
                 code.blob-content__line {
-                    span.blob-content__code {
-                        (maud::PreEscaped(line))
-                    }
+                    (maud::PreEscaped(line))
+                    ("\n")
                 }
             }
         }
+    }
+}
+
+fn iter_nodes<'a, F>(node: &'a AstNode<'a>, f: &F)
+where
+    F: Fn(&'a AstNode<'a>),
+{
+    f(node);
+    for c in node.children() {
+        iter_nodes(c, f);
     }
 }
 
@@ -222,13 +203,47 @@ pub fn readme(readme: &str, _page: &Page) -> Markup {
         ext_header_ids: Some("".to_owned()),
         ext_footnotes: true,
         width: 80,
+        smart: true,
+        unsafe_: true,
         ..ComrakOptions::default()
     };
-    let markdown = markdown_to_html(&readme, &comrak_options);
-    // i'm not sanitising this, so feel free to bring tyour own scripts, styles and tracking pixels
-    let rendered_readme = maud::PreEscaped(markdown);
+    let arena = Arena::new();
+    let document = parse_document(&arena, readme, &comrak_options);
+
+    iter_nodes(document, &|node| {
+        let ref mut value = node.data.borrow_mut().value;
+        let new_value = match value {
+            &mut NodeValue::CodeBlock(ref code_block) => {
+                let token = std::str::from_utf8(&code_block.info).unwrap_or("text");
+                if token == "text" {
+                    value.to_owned()
+                } else {
+                    let string = std::str::from_utf8(&code_block.literal)
+                        .unwrap_or("codeblock was not valid utf-8");
+                    let highlighted = format!(
+                        "<pre lang={}><code>{}</pre></code>",
+                        token,
+                        highlight::highlight(token, string)
+                    );
+                    NodeValue::HtmlBlock(NodeHtmlBlock {
+                        literal: highlighted.into_bytes(),
+                        block_type: 0,
+                    })
+                }
+            }
+            _ => value.to_owned(),
+        };
+
+        *value = new_value;
+    });
+    let mut readme = vec![];
+    format_html(document, &comrak_options, &mut readme).unwrap();
+    let readme = std::str::from_utf8(&readme);
+
+    // i'm not sanitising this, so feel free to bring your own scripts, styles
+    // and tracking pixels
     html!(article.readme {
-        (rendered_readme)
+        (maud::PreEscaped(readme.unwrap_or("Readme was not valid utf-8")))
     })
 }
 
@@ -409,31 +424,11 @@ pub fn refs(refs: (Vec<String>, Vec<String>), repo_url: String, _page: &Page) ->
 }
 
 pub fn diff_file(file: &str) -> Markup {
-    let syntaxes = SyntaxSet::load_defaults_newlines();
-
-    let syntax = syntaxes
-        .find_syntax_by_token("diff")
-        .unwrap_or(syntaxes.find_syntax_plain_text());
-
-    let themes = ThemeSet::load_defaults();
-    let theme = &themes.themes["base16-ocean.light"];
-    let mut h = syntect::easy::HighlightLines::new(syntax, theme);
-
-    let lines = LinesWithEndings::from(file).map(|line| {
-        let ranges = h.highlight(line, &syntaxes);
-        syntect::html::styled_line_to_highlighted_html(
-            &ranges,
-            syntect::html::IncludeBackground::No,
-        )
-    });
-
+    let string = file.to_owned();
+    let diff = highlight::highlight("diff", &string);
     html! {
         pre.commit-diff {
-            @for line in lines {
-                code.commit-diff__line {
-                    (maud::PreEscaped(line))
-                }
-            }
+            (maud::PreEscaped(diff))
         }
     }
 }
