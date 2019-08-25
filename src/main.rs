@@ -57,14 +57,6 @@ fn respond(markup: Result<Markup, Missing>) -> Response<Body> {
         },
     }
 }
-
-fn redirect(location: String) -> Response<Body> {
-    Response::builder()
-        .header(header::LOCATION, location)
-        .body(Body::from(""))
-        .expect("tried to make a redirect and didn't")
-}
-
 fn get_git_root() -> path::PathBuf {
     let args = get_args();
     let mut pathbuf = path::PathBuf::new();
@@ -154,7 +146,7 @@ fn route(
                 "log" => respond(page::log(user_name, project_name, target, rest)),
                 "blob" => respond(page::blob(user_name, project_name, target, rest)),
                 "commit" => respond(page::commit(user_name, project_name, target, rest)),
-                "branches" => respond(page::branches(user_name, project_name, target, rest)),
+                "refs" => respond(page::refs(user_name, project_name, target, rest)),
                 _ => respond(Err(Missing::Nowhere)),
             }
         }

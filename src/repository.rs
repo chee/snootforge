@@ -184,4 +184,20 @@ impl Repository {
         }
         Err(Missing::Nowhere)
     }
+
+    pub fn refs(&self) -> Result<(Vec<String>, Vec<String>), Missing> {
+        let tag_names = self.git2.tag_names(None).unwrap();
+        let mut tags: Vec<String> = vec![];
+        let mut branches: Vec<String> = vec![];
+
+        for name in tag_names.iter() {
+            tags.push(name.unwrap().to_string());
+        }
+
+        for branch in self.git2.branches(None).unwrap() {
+            let branch = branch.unwrap().0;
+            branches.push(branch.name().unwrap().unwrap().to_string());
+        }
+        Ok((tags, branches))
+    }
 }

@@ -124,7 +124,7 @@ pub fn log(
     let log = get_log(&repo, target)?;
     Ok(html! {
         (markup::project_header(&repo, &Page::Log))
-        (markup::log(log, &Page::Log))
+        (markup::log(log, repo.url(), &Page::Log))
     })
 }
 
@@ -133,12 +133,62 @@ fn _get_commit<'a>(_repo: &'a Repository, _reff: &str) -> Result<git2::Commit<'a
 }
 
 pub fn commit(
-    _name: &str,
-    _project_name: &str,
-    _target: Option<&str>,
-    _rest: Option<&[&str]>,
+    name: &str,
+    project_name: &str,
+    target: Option<&str>,
+    rest: Option<&[&str]>,
 ) -> Result<Markup, Missing> {
-    Err(Missing::Sometime)
+    let repo = get_repo(name, project_name)?;
+    let log = get_log(&repo, None)?;
+    let target = match target {
+        Some(t) => t,
+        _ => return Err(Missing::Nowhere),
+    };
+    let mut this_commit: Option<&git2::Commit> = None;
+    let mut prev_commit: Option<&git2::Commit> = None;
+
+    for (index, c) in log.iter().enumerate() {
+        if format!("{}", c.id()) == target {
+            this_commit = Some(c);
+            // this isn't really right at all
+            prev_commit = log.get(index + 1).map(|t| t);
+            break;
+        }
+    }
+
+    let commit_markup = match (this_commit, prev_commit) {
+        (Some(this), Some(prev)) => {
+            let this_tree = this.tree().map(|t| Some(t)).unwrap_or(None);
+            let that_tree = prev.tree().map(|t| Some(t)).unwrap_or(None);
+            let diff = match repo.git2.diff_tree_to_tree(
+                that_tree.as_ref(),
+                this_tree.as_ref(),
+                Some(&mut git2::DiffOptions::default()),
+            ) {
+                Ok(diff) => Some(diff),
+                _ => None,
+            };
+            markup::commit(this, diff)
+        }
+        (Some(this), None) => {
+            let this_tree = this.tree().map(|t| Some(t)).unwrap_or(None);
+            let diff = match repo.git2.diff_tree_to_tree(
+                None,
+                this_tree.as_ref(),
+                Some(&mut git2::DiffOptions::default()),
+            ) {
+                Ok(diff) => Some(diff),
+                _ => None,
+            };
+            markup::commit(this, diff)
+        }
+        _ => return Err(Missing::Nowhere),
+    };
+
+    Ok(html! {
+        (markup::project_header(&repo, &Page::Commit))
+        (commit_markup)
+    })
 }
 
 pub fn blob(
@@ -175,11 +225,16 @@ pub fn blob(
     })
 }
 
-pub fn branches(
-    _name: &str,
-    _project_name: &str,
+pub fn refs(
+    name: &str,
+    project_name: &str,
     _target: Option<&str>,
     _rest: Option<&[&str]>,
 ) -> Result<Markup, Missing> {
-    Err(Missing::Sometime)
+    let repo = get_repo(name, project_name)?;
+    let refs = repo.refs()?;
+    Ok(html! {
+        (markup::project_header(&repo, &Page::Refs))
+        (markup::refs(refs, repo.url(), &Page::Refs))
+    })
 }

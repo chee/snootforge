@@ -2,8 +2,7 @@ use crate::page::Page;
 use crate::repository::Repository;
 use crate::tree::{Tree, TreeEntry, TreeEntryKind};
 use crate::user::User;
-use syntect::highlighting::{Color, Style, ThemeSet};
-use syntect::html::tokens_to_classed_spans;
+use syntect::highlighting::ThemeSet;
 use syntect::parsing::SyntaxSet;
 use syntect::util::LinesWithEndings;
 
@@ -193,7 +192,7 @@ pub fn blob(subpath: &std::path::PathBuf, blob: String, _page: &Page) -> Markup 
             ),
     };
     let themes = ThemeSet::load_defaults();
-    let theme = &themes.themes["InspiredGitHub"];
+    let theme = &themes.themes["base16-ocean.light"];
     let mut h = syntect::easy::HighlightLines::new(syntax, theme);
     let lines = LinesWithEndings::from(&blob).map(|line| {
         let ranges = h.highlight(line, &syntaxes);
@@ -315,12 +314,12 @@ pub fn tree(tree: &Tree, _page: &Page) -> Markup {
     }
 }
 
-fn log_commit(commit: git2::Commit) -> Markup {
+fn log_commit(commit: git2::Commit, repo_url: &str) -> Markup {
     let summary = commit.summary().unwrap_or("yeet");
     let committer = commit.committer();
     let author = commit.author();
     let id = commit.id();
-    let commit_url = format!("/commit/{}", id);
+    let commit_url = format!("{}/commit/{}", repo_url, id);
     let commit_short_id = commit.as_object().short_id().unwrap_or_default();
     let short_id = commit_short_id.as_str().unwrap_or_default();
     let committer_name = committer.name().unwrap_or("secret person");
@@ -362,12 +361,120 @@ fn log_commit(commit: git2::Commit) -> Markup {
     }
 }
 
-pub fn log(log: Vec<git2::Commit>, _page: &Page) -> Markup {
+pub fn log(log: Vec<git2::Commit>, repo_url: String, _page: &Page) -> Markup {
     html! {
         ol.log {
             @for commit in log {
-                (log_commit(commit))
+                (log_commit(commit, &repo_url))
             }
+        }
+    }
+}
+
+fn refname(refname: &str, repo_url: &str) -> Markup {
+    html! {
+        li.refs-name {
+            a.refs-name__anchor href=(format!("{}/tree/{}", repo_url, refname)) {
+                (refname)
+            }
+        }
+    }
+}
+
+pub fn refs(refs: (Vec<String>, Vec<String>), repo_url: String, _page: &Page) -> Markup {
+    html! {
+        section.refs {
+            section.refs__tags {
+                h1.refs-heading {
+                    "tags"
+                }
+                ul.refs-list {
+                    @for tag in refs.0 {
+                        (refname(&tag, &repo_url))
+                    }
+                }
+            }
+            section.refs__branches {
+                h1.refs-heading {
+                    "branches"
+                }
+                ul.refs-list {
+                    @for branch in refs.1 {
+                        (refname(&branch, &repo_url))
+                    }
+                }
+            }
+        }
+    }
+}
+
+pub fn diff_file(file: &str) -> Markup {
+    let syntaxes = SyntaxSet::load_defaults_newlines();
+
+    let syntax = syntaxes
+        .find_syntax_by_token("diff")
+        .unwrap_or(syntaxes.find_syntax_plain_text());
+
+    let themes = ThemeSet::load_defaults();
+    let theme = &themes.themes["base16-ocean.light"];
+    let mut h = syntect::easy::HighlightLines::new(syntax, theme);
+
+    let lines = LinesWithEndings::from(file).map(|line| {
+        let ranges = h.highlight(line, &syntaxes);
+        syntect::html::styled_line_to_highlighted_html(
+            &ranges,
+            syntect::html::IncludeBackground::No,
+        )
+    });
+
+    html! {
+        pre.commit-diff {
+            @for line in lines {
+                code.commit-diff__line {
+                    (maud::PreEscaped(line))
+                }
+            }
+        }
+    }
+}
+
+pub fn commit<'a>(commit: &git2::Commit, diff: Option<git2::Diff>) -> Markup {
+    let mut files: Vec<String> = vec![];
+    let mut current_diff: String = "".to_string();
+    let mut last_file_id: git2::Oid = git2::Oid::zero();
+    if let Some(diff) = &diff {
+        diff.print(git2::DiffFormat::Patch, |delta, _hunk, line| {
+            let new_file_id = delta.new_file().id();
+            if new_file_id != last_file_id {
+                files.push(current_diff.clone());
+                current_diff.clear();
+            }
+            current_diff = format!("{}{}", current_diff, line.origin().to_string());
+            current_diff = format!(
+                "{}{}",
+                current_diff,
+                std::str::from_utf8(line.content()).unwrap_or("")
+            );
+            last_file_id = new_file_id;
+            true
+        })
+        .unwrap_or_default();
+    }
+
+    html! {
+        section.commit {
+            pre.commit-message {
+                (commit.message().unwrap_or(""))
+            }
+            .commit-id {
+                (commit.id())
+            }
+            @if files.len() > 1 {
+                @for file in &files[1..] {
+                    (diff_file(&file))
+                }
+            }
+            (diff_file(&current_diff))
         }
     }
 }

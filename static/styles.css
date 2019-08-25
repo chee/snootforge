@@ -410,3 +410,28 @@
 	text-align: right;
 	opacity: 0.5;
 }
+
+.refs {
+	margin: 0 1em;
+}
+
+.refs-heading {
+	font-size: 1em;
+	font-weight: 500;
+}
+
+.commit {
+	margin: 1em;
+}
+
+.commit-message {
+	font-family: var(--font-stack);
+}
+
+.commit-diff {
+	font-size: 0.8em;
+	overflow: auto;
+	background: white;
+	padding: 1em;
+	margin: 1em;
+}
