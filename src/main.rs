@@ -45,10 +45,10 @@ fn respond(markup: Result<Markup, Missing>) -> Response<Body> {
                 .expect("Failed to construct the response")
         }
         Err(missing) => match missing {
-            Missing::Sometime => Response::builder()
-                .status(StatusCode::NOT_IMPLEMENTED)
-                .body(Body::from("sorry"))
-                .expect("failed"),
+            // Missing::Sometime => Response::builder()
+            //     .status(StatusCode::NOT_IMPLEMENTED)
+            //     .body(Body::from("sorry"))
+            //     .expect("failed"),
             Missing::Nowhere => Response::builder()
                 .status(StatusCode::PAYMENT_REQUIRED)
                 .body(Body::from("sorry"))

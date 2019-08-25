@@ -89,10 +89,10 @@ pub fn user_header(user: &User, _page: &Page) -> Markup {
     )
 }
 
-pub fn user_repos(user: &User, page: &Page) -> Markup {
+pub fn user_repos(repos: &Vec<Repository>, page: &Page) -> Markup {
     html! {
         section.repo-summary-collection {
-            @for repo in &user.repos {
+            @for repo in repos {
                 (repo_summary(&repo, page))
             }
         }

@@ -17,20 +17,31 @@ pub enum Page {
     Refs,
 }
 
+fn sort_repos(repos: &mut Vec<Repository>) {
+    repos.sort_by(|a, b| {
+        let a = a.last_update().unwrap();
+        let b = b.last_update().unwrap();
+        b.cmp(&a)
+    })
+}
+
 pub fn root() -> Result<Markup, Missing> {
     let git_root = super::get_git_root();
     if git_root.is_dir() {
         let user_dirs = fs::read_dir(git_root).expect("git root read didn't work");
         let users = user_dirs.map(|user_dir| User::from_path(&user_dir.unwrap().path()));
+        let mut all_repos = vec![];
+        for user in users {
+            if let Ok(mut user) = user {
+                all_repos.append(&mut user.repos)
+            }
+        }
+        sort_repos(&mut all_repos);
         Ok(html!(
             h1.visuallyhidden {
                 "snoot forge repository list"
             }
-            @for user in users {
-                @if let Ok(user) = user {
-                    (markup::user_repos(&user, &Page::Root))
-                }
-            }
+            (markup::user_repos(&all_repos, &Page::Root))
         ))
     } else {
         Err(Missing::Nowhere)
@@ -45,13 +56,14 @@ fn get_user_root(name: &str) -> path::PathBuf {
 
 pub fn user(name: &str) -> Result<Markup, Missing> {
     let user = User::from_path(&get_user_root(name));
-    let user = match user {
+    let mut user = match user {
         Ok(user) => user,
         Err(error) => return Err(error),
     };
+    sort_repos(&mut user.repos);
     Ok(html! {
         (markup::user_header(&user, &Page::User))
-        (markup::user_repos(&user, &Page::User))
+        (markup::user_repos(&user.repos, &Page::User))
     })
 }
 
@@ -130,15 +142,11 @@ pub fn log(
     })
 }
 
-fn _get_commit<'a>(_repo: &'a Repository, _reff: &str) -> Result<git2::Commit<'a>, Missing> {
-    Err(Missing::Sometime)
-}
-
 pub fn commit(
     name: &str,
     project_name: &str,
     target: Option<&str>,
-    rest: Option<&[&str]>,
+    _rest: Option<&[&str]>,
 ) -> Result<Markup, Missing> {
     let repo = get_repo(name, project_name)?;
     let log = get_log(&repo, None)?;
