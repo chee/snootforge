@@ -1,14 +1,17 @@
 #![feature(proc_macro_hygiene)]
 
 extern crate chrono_humanize;
-extern crate comrak;
 extern crate futures;
 extern crate git2;
 extern crate hyper;
 extern crate hyperlocal;
+#[macro_use]
+extern crate lazy_static;
+extern crate comrak;
 extern crate maud;
 extern crate mime;
 extern crate syntect;
+extern crate typed_arena;
 
 use crate::futures::Future;
 use hyper::service::service_fn;
@@ -17,6 +20,7 @@ use maud::{html, Markup};
 use missing::Missing;
 use std::{env, fs, io, path};
 
+mod highlight;
 mod markup;
 mod missing;
 mod page;
@@ -64,9 +68,9 @@ fn get_git_root() -> path::PathBuf {
     pathbuf
 }
 
-fn guess_mime(file_path: &path::PathBuf) -> mime::Mime {
-    let extension = file_path.extension();
-    match extension {
+fn guess_mime(file_name: &str) -> mime::Mime {
+    let file_path = path::PathBuf::from(file_name);
+    match file_path.extension() {
         Some(extension) => match extension.to_str() {
             Some("png") => mime::IMAGE_PNG,
             Some("jpg") => mime::IMAGE_JPEG,
@@ -76,15 +80,14 @@ fn guess_mime(file_path: &path::PathBuf) -> mime::Mime {
             Some("css") => mime::TEXT_CSS,
             Some("json") => mime::APPLICATION_JSON,
             Some("js") => mime::APPLICATION_JAVASCRIPT,
-            Some(&_) => mime::TEXT_PLAIN,
-            None => mime::TEXT_PLAIN,
+            _ => mime::TEXT_PLAIN,
         },
         None => mime::TEXT_PLAIN,
     }
 }
 
-fn make_file_response(file_path: &path::PathBuf, body: Vec<u8>) -> Response<Body> {
-    let file_mime = guess_mime(file_path).to_string();
+fn make_file_response(file_name: &str, body: Vec<u8>) -> Response<Body> {
+    let file_mime = guess_mime(file_name).to_string();
 
     Response::builder()
         .header(header::CONTENT_LENGTH, body.len() as u64)
@@ -93,10 +96,23 @@ fn make_file_response(file_path: &path::PathBuf, body: Vec<u8>) -> Response<Body
         .expect("tried to make a static file and didn't")
 }
 
-fn get_static_file(file_path: &path::PathBuf) -> Option<Response<Body>> {
-    match fs::read(file_path) {
-        Ok(file) => Some(make_file_response(file_path, file)),
-        Err(_) => None,
+fn get_static_file(file_name: &str) -> Option<Response<Body>> {
+    let file = match fs::read(path::PathBuf::from(format!("static/{}", file_name))) {
+        Ok(file) => Some(file),
+        _ => match file_name {
+            "normalize.css" => Some(include_bytes!("../static/normalize.css").to_vec()),
+            "styles.css" => Some(include_bytes!("../static/styles.css").to_vec()),
+            "blob-theme.css" => Some(include_bytes!("../static/blob-theme.css").to_vec()),
+            "logo.svg" => Some(include_bytes!("../static/logo.svg").to_vec()),
+            "custom.css" => Some(vec![]),
+            _ => None,
+        },
+    };
+
+    if let Some(file) = file {
+        Some(make_file_response(file_name, file))
+    } else {
+        None
     }
 }
 
@@ -114,9 +130,7 @@ fn route(
         1 => {
             // might be a static path, or a username
             let first = uri_parts.get(0).unwrap();
-            let mut static_path = path::PathBuf::from("static/");
-            static_path.push(first);
-            let static_response = get_static_file(&static_path);
+            let static_response = get_static_file(first);
             match static_response {
                 Some(response) => response,
                 None => respond(page::user(first)),
