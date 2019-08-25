@@ -27,7 +27,9 @@ pub fn root() -> Result<Markup, Missing> {
                 "snoot forge repository list"
             }
             @for user in users {
-                 (markup::user_repos(&user.unwrap(), &Page::Root))
+                @if let Ok(user) = user {
+                    (markup::user_repos(&user, &Page::Root))
+                }
             }
         ))
     } else {
