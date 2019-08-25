@@ -95,10 +95,17 @@ impl TreeEntry<'_> {
     pub fn set_url(&mut self, url: String, refname: &str, subpath: Option<&path::PathBuf>) {
         let prefix = url.add(&self.kind.url_prefix()).add("/").add(refname);
         let path = match subpath {
-            Some(subpath) => format!("/{}", subpath.to_str().unwrap()),
-            None => "".to_string(),
+            Some(subpath) => {
+                let substr = subpath.to_str().unwrap();
+                if substr.len() > 0 {
+                    format!("/{}/", substr)
+                } else {
+                    "/".to_string()
+                }
+            }
+            None => "/".to_string(),
         };
-        let url: String = prefix.add(&path).add("/").add(&self.name);
+        let url: String = prefix.add(&path).add(&self.name);
         self.url = Some(url.to_owned());
     }
 
