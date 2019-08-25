@@ -4,6 +4,7 @@ use crate::repository::Repository;
 use crate::user::User;
 
 use maud::{html, Markup};
+use std::cmp::Ordering;
 use std::{fs, path};
 
 #[derive(PartialEq, Debug)]
@@ -19,9 +20,14 @@ pub enum Page {
 
 fn sort_repos(repos: &mut Vec<Repository>) {
     repos.sort_by(|a, b| {
-        let a = a.last_update().unwrap();
-        let b = b.last_update().unwrap();
-        b.cmp(&a)
+        let a = a.last_update();
+        let b = b.last_update();
+        match (a, b) {
+            (Ok(a), Ok(b)) => b.cmp(&a),
+            (Err(_), Ok(_)) => Ordering::Greater,
+            (Ok(_), Err(_)) => Ordering::Less,
+            (Err(_), Err(_)) => Ordering::Equal,
+        }
     })
 }
 
