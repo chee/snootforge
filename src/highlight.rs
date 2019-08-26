@@ -13,11 +13,7 @@ lazy_static! {
         syntax_set
     };
     pub static ref THEME_SET: ThemeSet = {
-        let mut syntect_dir = std::path::PathBuf::from(file!());
-        syntect_dir.pop();
-        syntect_dir.pop();
-        syntect_dir.push("syntect");
-        let theme_set: ThemeSet = ThemeSet::load_from_folder(syntect_dir).unwrap();
+        let theme_set: ThemeSet = from_binary(include_bytes!("../syntect/themes.themedump"));
         theme_set
     };
 }

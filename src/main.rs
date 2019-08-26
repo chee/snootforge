@@ -1,5 +1,4 @@
 #![feature(proc_macro_hygiene)]
-
 extern crate chrono_humanize;
 extern crate futures;
 extern crate git2;
