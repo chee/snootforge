@@ -36,8 +36,8 @@ fn respond(markup: Result<Markup, Missing>) -> Response<Body> {
                     main {
                         (markup)
                     }
+                (markup::foot())
             });
-
             Response::builder()
                 .header(header::CONTENT_LENGTH, body.len() as u64)
                 .header(header::CONTENT_TYPE, "text/html")
@@ -96,17 +96,54 @@ fn make_file_response(file_name: &str, body: Vec<u8>) -> Response<Body> {
         .expect("tried to make a static file and didn't")
 }
 
+fn check_static_exists(file_name: &str) -> Option<path::PathBuf> {
+    let file_path = path::PathBuf::from(format!("static/{}", file_name));
+    if file_path.exists() {
+        Some(file_path)
+    } else {
+        None
+    }
+}
+
+fn read_or_bytes(file_name: &str, bytes: Vec<u8>) -> Vec<u8> {
+    if let Some(file_path) = check_static_exists(file_name) {
+        match fs::read(file_path) {
+            Ok(file) => file,
+            _ => bytes,
+        }
+    } else {
+        bytes
+    }
+}
+
 fn get_static_file(file_name: &str) -> Option<Response<Body>> {
-    let file = match fs::read(path::PathBuf::from(format!("static/{}", file_name))) {
-        Ok(file) => Some(file),
-        _ => match file_name {
-            "normalize.css" => Some(include_bytes!("../static/normalize.css").to_vec()),
-            "styles.css" => Some(include_bytes!("../static/styles.css").to_vec()),
-            "blob-theme.css" => Some(include_bytes!("../static/blob-theme.css").to_vec()),
-            "logo.svg" => Some(include_bytes!("../static/logo.svg").to_vec()),
-            "custom.css" => Some(vec![]),
-            _ => None,
-        },
+    let file = match file_name {
+        "normalize.css" => Some(read_or_bytes(
+            file_name,
+            include_bytes!("../static/normalize.css").to_vec(),
+        )),
+        "styles.css" => Some(read_or_bytes(
+            file_name,
+            include_bytes!("../static/normalize.css").to_vec(),
+        )),
+        "blob-theme.css" => Some(read_or_bytes(
+            file_name,
+            include_bytes!("../static/normalize.css").to_vec(),
+        )),
+        "logo.svg" => Some(read_or_bytes(
+            file_name,
+            include_bytes!("../static/normalize.css").to_vec(),
+        )),
+        "favicon.ico" => Some(read_or_bytes(
+            file_name,
+            include_bytes!("../static/normalize.css").to_vec(),
+        )),
+        "javascript.js" => Some(read_or_bytes(
+            file_name,
+            include_bytes!("../static/normalize.css").to_vec(),
+        )),
+        "custom.css" | "custom.js" => Some(read_or_bytes(file_name, vec![])),
+        _ => None,
     };
 
     if let Some(file) = file {

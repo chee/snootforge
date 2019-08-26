@@ -23,7 +23,6 @@ pub fn head(title: &str) -> Markup {
         meta name="viewport" content="width=device-width, initial-scale=1";
         link rel="stylesheet" href="/normalize.css";
         link rel="stylesheet" href="/styles.css";
-        link rel="stylesheet" href="/blob-theme.css";
         link rel="stylesheet" href="/custom.css";
         title {(title)}
         header.main-header {
@@ -32,6 +31,19 @@ pub fn head(title: &str) -> Markup {
                 .main-header__name {(title)}
             }
         }
+    }
+}
+
+pub fn foot() -> Markup {
+    html! {
+        link rel="stylesheet" href="/blob-theme.css";
+        script
+            defer="defer"
+            src="https://code.jquery.com/jquery-3.4.1.min.js"
+            integrity="sha256-CSXorXvZcTkaix6Yvo6HppcZGetbYMGWSFlBw8HfCJo="
+            crossorigin="anonymous" {}
+        script defer="defer" src="/javascript.js" {}
+        script defer="defer" src="/custom.js" {}
     }
 }
 
