@@ -137,7 +137,7 @@ impl TreeEntry<'_> {
 pub struct Tree<'a, 'b, 'c> {
     pub repo_url: String,
     pub subtree: bool,
-    // tree: git2::Tree<'a>,
+    tree: git2::Tree<'a>,
     repo: &'c Repository,
     pub entries: Vec<TreeEntry<'b>>,
     refname: String,
@@ -197,7 +197,7 @@ impl Tree<'_, '_, '_> {
         entries.sort_by(|a, b| a.kind.cmp(&b.kind));
         Ok(Tree {
             repo,
-            // tree,
+            tree,
             entries,
             repo_url,
             subtree: match subpath {
