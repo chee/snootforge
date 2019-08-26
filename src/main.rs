@@ -28,14 +28,21 @@ mod repository;
 mod tree;
 mod user;
 
-fn respond(markup: Result<Markup, Missing>) -> Response<Body> {
-    match markup {
-        Ok(markup) => {
+pub enum ContentType<'life> {
+    // content_type, data
+    Binary(&'life str, Vec<u8>),
+    // markup, optional title
+    Markup(Markup, Option<String>),
+}
+
+fn respond(content: Result<ContentType, Missing>) -> Response<Body> {
+    match content {
+        Ok(ContentType::Markup(markup, title)) => {
             let body = markup::render(html! {
-                (markup::head("snootforge"))
-                    main {
-                        (markup)
-                    }
+                (markup::head(title))
+                main {
+                    (markup)
+                }
                 (markup::foot())
             });
             Response::builder()
@@ -44,21 +51,32 @@ fn respond(markup: Result<Markup, Missing>) -> Response<Body> {
                 .body(Body::from(body))
                 .expect("Failed to construct the response")
         }
-        Err(missing) => match missing {
-            // Missing::Sometime => Response::builder()
-            //     .status(StatusCode::NOT_IMPLEMENTED)
-            //     .body(Body::from("sorry"))
-            //     .expect("failed"),
-            Missing::Nowhere => Response::builder()
-                .status(StatusCode::PAYMENT_REQUIRED)
-                .body(Body::from("sorry"))
-                .expect("failed"),
-            Missing::Elsewhere(location) => Response::builder()
-                .header(header::LOCATION, location)
-                .status(StatusCode::FOUND)
-                .body(Body::from("sorry"))
-                .expect("failed to redirect"),
-        },
+        Ok(ContentType::Binary(content_type, body)) => {
+            let response = Response::builder()
+                .header(header::CONTENT_LENGTH, body.len() as u64)
+                .header(header::CONTENT_TYPE, content_type)
+                .body(Body::from(body));
+            response
+        }
+        .expect("Failed to construct the response"),
+        Err(missing) => {
+            let response = match missing {
+                // Missing::Sometime => Response::builder()
+                //     .status(StatusCode::NOT_IMPLEMENTED)
+                //     .body(Body::from("sorry"))
+                //     .expect("failed"),
+                Missing::Nowhere => Response::builder()
+                    .status(StatusCode::PAYMENT_REQUIRED)
+                    .body(Body::from("sorry"))
+                    .expect("failed"),
+                Missing::Elsewhere(location) => Response::builder()
+                    .header(header::LOCATION, location)
+                    .status(StatusCode::FOUND)
+                    .body(Body::from("sorry"))
+                    .expect("failed to redirect"),
+            };
+            response
+        }
     }
 }
 fn get_git_root() -> path::PathBuf {
@@ -89,11 +107,7 @@ fn guess_mime(file_name: &str) -> mime::Mime {
 fn make_file_response(file_name: &str, body: Vec<u8>) -> Response<Body> {
     let file_mime = guess_mime(file_name).to_string();
 
-    Response::builder()
-        .header(header::CONTENT_LENGTH, body.len() as u64)
-        .header(header::CONTENT_TYPE, file_mime)
-        .body(Body::from(body))
-        .expect("tried to make a static file and didn't")
+    respond(Ok(ContentType::Binary(&file_mime, body)))
 }
 
 fn check_static_exists(file_name: &str) -> Option<path::PathBuf> {
@@ -124,23 +138,19 @@ fn get_static_file(file_name: &str) -> Option<Response<Body>> {
         )),
         "styles.css" => Some(read_or_bytes(
             file_name,
-            include_bytes!("../static/normalize.css").to_vec(),
-        )),
-        "blob-theme.css" => Some(read_or_bytes(
-            file_name,
-            include_bytes!("../static/normalize.css").to_vec(),
+            include_bytes!("../static/styles.css").to_vec(),
         )),
         "logo.svg" => Some(read_or_bytes(
             file_name,
-            include_bytes!("../static/normalize.css").to_vec(),
+            include_bytes!("../static/logo.svg").to_vec(),
         )),
         "favicon.ico" => Some(read_or_bytes(
             file_name,
-            include_bytes!("../static/normalize.css").to_vec(),
+            include_bytes!("../static/favicon.ico").to_vec(),
         )),
         "javascript.js" => Some(read_or_bytes(
             file_name,
-            include_bytes!("../static/normalize.css").to_vec(),
+            include_bytes!("../static/javascript.js").to_vec(),
         )),
         "custom.css" | "custom.js" => Some(read_or_bytes(file_name, vec![])),
         _ => None,

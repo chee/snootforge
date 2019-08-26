@@ -2,6 +2,7 @@ use crate::markup;
 use crate::missing::Missing;
 use crate::repository::Repository;
 use crate::user::User;
+use crate::ContentType;
 
 use maud::{html, Markup};
 use std::cmp::Ordering;
@@ -16,6 +17,7 @@ pub enum Page {
     Blob,
     Commit,
     Refs,
+    Raw,
 }
 
 fn sort_repos(repos: &mut Vec<Repository>) {
@@ -31,7 +33,7 @@ fn sort_repos(repos: &mut Vec<Repository>) {
     })
 }
 
-pub fn root() -> Result<Markup, Missing> {
+pub fn root() -> Result<ContentType<'static>, Missing> {
     let git_root = super::get_git_root();
     if git_root.is_dir() {
         let user_dirs = fs::read_dir(git_root).expect("git root read didn't work");
@@ -43,11 +45,14 @@ pub fn root() -> Result<Markup, Missing> {
             }
         }
         sort_repos(&mut all_repos);
-        Ok(html!(
-            h1.visuallyhidden {
-                "snoot forge repository list"
-            }
-            (markup::user_repos(&all_repos, &Page::Root))
+        Ok(ContentType::Markup(
+            html!(
+                h1.visuallyhidden {
+                    "snoot forge repository list"
+                }
+                (markup::user_repos(&all_repos, &Page::Root))
+            ),
+            None,
         ))
     } else {
         Err(Missing::Nowhere)
@@ -60,17 +65,20 @@ fn get_user_root(name: &str) -> path::PathBuf {
     user_root
 }
 
-pub fn user(name: &str) -> Result<Markup, Missing> {
+pub fn user(name: &str) -> Result<ContentType, Missing> {
     let user = User::from_path(&get_user_root(name));
     let mut user = match user {
         Ok(user) => user,
         Err(error) => return Err(error),
     };
     sort_repos(&mut user.repos);
-    Ok(html! {
-        (markup::user_header(&user, &Page::User))
-        (markup::user_repos(&user.repos, &Page::User))
-    })
+    Ok(ContentType::Markup(
+        html! {
+            (markup::user_header(&user, &Page::User))
+            (markup::user_repos(&user.repos, &Page::User))
+        },
+        Some(user.name),
+    ))
 }
 
 pub fn get_repo(name: &str, project_name: &str) -> Result<Repository, Missing> {
@@ -88,21 +96,20 @@ fn get_path(rest: Option<&[&str]>) -> Option<path::PathBuf> {
     }
 }
 
-pub fn tree(
-    name: &str,
+pub fn tree<'name>(
+    name: &'name str,
     project_name: &str,
     target: Option<&str>,
     rest: Option<&[&str]>,
-) -> Result<Markup, Missing> {
+) -> Result<ContentType<'name>, Missing> {
     let repo = get_repo(name, project_name)?;
     let subpath = get_path(rest);
     let tree = match repo.tree(target, subpath.as_ref()) {
         Ok(tree) => tree,
         Err(Missing::Elsewhere(page)) => {
             return Err(Missing::Elsewhere(format!(
-                "/{}/{}/{}/{}/{}",
-                name,
-                project_name,
+                "{}/{}/{}/{}",
+                repo.url(),
                 page,
                 target.unwrap_or(""),
                 rest.unwrap_or(&[]).join("/")
@@ -113,16 +120,32 @@ pub fn tree(
 
     let readme = repo.readme(&tree);
 
-    Ok(html! {
-       (markup::project_header(&repo, &Page::Tree))
-       (markup::tree(&tree, &Page::Tree))
-       @if let Ok(readme) = readme {
-           (markup::readme(readme, &Page::Tree))
-       }
-    })
+    let title_prefix = match rest {
+        Some(rest) => format!("{} -", rest.join("/")),
+        None => "".to_string(),
+    };
+
+    let title = format!(
+        "{} {}/{}@{}",
+        title_prefix,
+        name,
+        project_name,
+        target.unwrap_or(repo.head()?.name().unwrap_or("")),
+    );
+
+    Ok(ContentType::Markup(
+        html! {
+            (markup::project_header(&repo, &Page::Tree))
+                (markup::tree(&tree, &Page::Tree))
+                @if let Ok(readme) = readme {
+                    (markup::readme(readme, &Page::Tree))
+                }
+        },
+        Some(title),
+    ))
 }
 
-pub fn project(name: &str, project_name: &str) -> Result<Markup, Missing> {
+pub fn project<'name>(name: &'name str, project_name: &str) -> Result<ContentType<'name>, Missing> {
     tree(name, project_name, None, None)
 }
 
@@ -134,26 +157,35 @@ fn get_log<'a>(repo: &'a Repository, reff: Option<&str>) -> Result<Vec<git2::Com
     }
 }
 
-pub fn log(
-    name: &str,
+pub fn log<'name>(
+    name: &'name str,
     project_name: &str,
     target: Option<&str>,
     _rest: Option<&[&str]>,
-) -> Result<Markup, Missing> {
+) -> Result<ContentType<'name>, Missing> {
     let repo = get_repo(name, project_name)?;
     let log = get_log(&repo, target)?;
-    Ok(html! {
-        (markup::project_header(&repo, &Page::Log))
-        (markup::log(log, repo.url(), &Page::Log))
-    })
+    let title = format!(
+        "Log - {}/{} @ {}",
+        name,
+        project_name,
+        target.unwrap_or(repo.head()?.name().unwrap_or(""))
+    );
+    Ok(ContentType::Markup(
+        html! {
+            (markup::project_header(&repo, &Page::Log))
+            (markup::log(log, repo.url(), &Page::Log))
+        },
+        Some(title),
+    ))
 }
 
-pub fn commit(
-    name: &str,
+pub fn commit<'name>(
+    name: &'name str,
     project_name: &str,
     target: Option<&str>,
     _rest: Option<&[&str]>,
-) -> Result<Markup, Missing> {
+) -> Result<ContentType<'name>, Missing> {
     let repo = get_repo(name, project_name)?;
     let log = get_log(&repo, None)?;
     let target = match target {
@@ -201,34 +233,57 @@ pub fn commit(
         _ => return Err(Missing::Nowhere),
     };
 
-    Ok(html! {
-        (markup::project_header(&repo, &Page::Commit))
-        (commit_markup)
-    })
+    let title = match this_commit {
+        Some(commit) => format!(
+            "{} - {}/{}@{}",
+            commit.summary().unwrap_or("Commit"),
+            name,
+            project_name,
+            target
+        ),
+        None => format!("Commit - {}/{}@{}", name, project_name, target),
+    };
+
+    Ok(ContentType::Markup(
+        html! {
+            (markup::project_header(&repo, &Page::Commit))
+            (commit_markup)
+        },
+        Some(title),
+    ))
 }
 
-pub fn blob(
-    name: &str,
-    project_name: &str,
+fn get_blob(
+    repo: &Repository,
     target: Option<&str>,
     rest: Option<&[&str]>,
-) -> Result<Markup, Missing> {
-    let repo = get_repo(name, project_name)?;
+) -> Result<String, Missing> {
     let subpath = get_path(rest);
     let tree = repo.tree(target, None)?;
     let blob = match tree.get_blob(subpath.as_ref()) {
         Ok(blob) => blob,
         _ => {
             return Err(Missing::Elsewhere(format!(
-                "/{}/{}/tree/{}/{}",
-                name,
-                project_name,
+                "{}/tree/{}/{}",
+                repo.url(),
                 target.unwrap_or(""),
                 rest.unwrap_or(&[]).join("/")
             )))
         }
     };
-    let subpath = subpath.unwrap();
+    Ok(blob)
+}
+
+pub fn blob<'name>(
+    name: &'name str,
+    project_name: &str,
+    target: Option<&str>,
+    rest: Option<&[&str]>,
+) -> Result<ContentType<'name>, Missing> {
+    let repo = get_repo(name, project_name)?;
+    let tree = repo.tree(target, None)?;
+    let blob = get_blob(&repo, target, rest)?.to_owned();
+    let subpath = get_path(rest).unwrap();
     let file_extension = subpath
         .extension()
         .unwrap_or(subpath.file_name().unwrap_or_default())
@@ -236,25 +291,48 @@ pub fn blob(
     let directory = subpath.parent().unwrap().to_str();
     let directory_url = tree.url_for(directory);
     let file_name = rest.unwrap_or(&[]).last();
-    Ok(html! {
-        (markup::project_header(&repo, &Page::Blob))
-        article.blob {
-            (markup::blob_header(directory.unwrap(), &directory_url.unwrap(), file_name.unwrap()))
-            (markup::blob(file_extension.unwrap(), blob, &Page::Blob))
-        }
-    })
+    let title = format!(
+        "{} ({}) - {}/{}@{}",
+        file_name.unwrap(),
+        directory.unwrap(),
+        name,
+        project_name,
+        target.unwrap_or(repo.head()?.name().unwrap_or(""))
+    );
+    Ok(ContentType::Markup(
+        html! {
+            (markup::project_header(&repo, &Page::Blob))
+                article.blob {
+                    (markup::blob_header(directory.unwrap(), &directory_url.unwrap(), file_name.unwrap()))
+                    (markup::blob(file_extension.unwrap(), blob, &Page::Blob))
+                }
+        },
+        Some(title),
+    ))
 }
 
-pub fn refs(
-    name: &str,
+pub fn refs<'name>(
+    name: &'name str,
     project_name: &str,
     _target: Option<&str>,
     _rest: Option<&[&str]>,
-) -> Result<Markup, Missing> {
+) -> Result<ContentType<'name>, Missing> {
     let repo = get_repo(name, project_name)?;
     let refs = repo.refs()?;
-    Ok(html! {
-        (markup::project_header(&repo, &Page::Refs))
-        (markup::refs(refs, repo.url(), &Page::Refs))
-    })
+    Ok(ContentType::Markup(
+        html! {
+            (markup::project_header(&repo, &Page::Refs))
+            (markup::refs(refs, repo.url(), &Page::Refs))
+        },
+        Some(format!("Refs - {}/{}", name, project_name)),
+    ))
+}
+
+pub fn raw<'name>(
+    name: &'name str,
+    project_name: &str,
+    _target: Option<&str>,
+    _rest: Option<&[&str]>,
+) -> Result<ContentType<'name>, Missing> {
+    Err(Missing::Nowhere)
 }

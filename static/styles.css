@@ -15,7 +15,7 @@
 	--readme-color: #000;
 	--readme-code-background: var(--background);
 	--readme-code-color: var(--color);
-	--font-base-size: 1.3em;
+	--font-base-size: 1.2em;
 	--nav-background: var(--background);
 	--nav-color: var(--color);
 	--nav-background-highlight: white;
@@ -30,6 +30,7 @@
 	--blob-background: #f9fcff;
 	--blob-color: #086F8A;
 	--blob-line-numbers: #abc;
+	--outer-margin: 0.5em;
 	background: var(--background);
 	color: var(--color);
 	font-family: var(--font-stack);
@@ -51,7 +52,7 @@
 }
 
 .main-header .main-header__anchor > * + * {
-	margin-left: 0.5em;
+	margin-left: var(--outer-margin);
 }
 
 .main-header__logo {
@@ -70,8 +71,8 @@
 .repo-summary {
 	display: flex;
 	flex-direction: column;
-	margin: 1em;
-	padding: 1em;
+	padding: var(--outer-margin);
+	margin: var(--outer-margin);
 	line-height: 1.4;
 }
 
@@ -148,7 +149,7 @@
 .user-name {
 	font-size: 1em;
 	color: var(--repo-name-color);
-	margin: 1em;
+	margin: var(--outer-margin);
 }
 
 .user-name__anchor {
@@ -163,7 +164,7 @@
 .project-name {
 	font-size: 1em;
 	color: var(--repo-name-color);
-	margin: 1em;
+	margin: var(--outer-margin);
 	font-weight: 400;
 }
 
@@ -176,12 +177,19 @@
 	font-weight: 700;
 }
 
+.project-description {
+	font-size: 0.8em;
+	font-style: italic;
+	font-weight: 400;
+	margin: var(--outer-margin);
+}
+
 .project-nav {
 	width: 80%;
 	background: var(--nav-background);
 	color: var(--nav-color);
 	line-height: 2em;
-	margin: 1em auto;
+	margin: var(--outer-margin) auto;
 }
 
 .project-nav-list {
@@ -190,8 +198,8 @@
 	justify-content: space-around;
 	list-style-type: none;
 	margin: 0;
-	padding: 0.5em;
-	grid-row-gap: 0.5em;
+	padding: var(--outer-margin);
+	grid-row-gap: var(--outer-margin);
 	grid-column-gap: 2em;
 }
 
@@ -217,17 +225,15 @@
 
 .log {
 	display: grid;
-	width: 100%;
 	list-style-type: none;
-	padding: 0 1em;
+	padding: 0 var(--outer-margin);
 }
 
 .log-commit {
-	width: 100%;
-	padding: 0 0.5em;
-	margin: 0.5em 0;
+	padding: 0 var(--outer-margin);
+	margin: var(--outer-margin) 0;
 	display: grid;
-	grid-column-gap: 0.5em;
+	grid-column-gap: var(--outer-margin);
 	grid-row-gap: 0.1em;
 	border-left: 2px solid var(--log-commit-summary-color);
 }
@@ -261,7 +267,7 @@
 	color: var(--commit-message-color);
 	overflow: auto;
 	font-size: 0.8em;
-	padding: 1em;
+	padding: var(--outer-margin);
 }
 
 .log-commit__person {
@@ -291,16 +297,14 @@
 .tree {
 	font-size: 0.8em;
 	list-style-type: none;
-	padding: 0 1em;
+	padding: 0 var(--outer-margin);
 	display: grid;
-	width: 100%;
 }
 
 .tree-entry {
-	width: 100%;
 	padding: 0.25em;
 	display: grid;
-	grid-column-gap: 0.5em;;
+	grid-column-gap: var(--outer-margin);;
 	grid-row-gap: 0.1em;
 	grid-template-columns: 2em 3fr;
 	grid-template-rows: auto 1fr auto;
@@ -360,7 +364,7 @@
 }
 
 .blob {
-	margin: 0 1em;
+	margin: 0;
 }
 
 .blob-header {
@@ -370,18 +374,16 @@
 .blob-header__heading {
 	font-weight: normal;
 	font-size: 1em;
-	margin: 0;
+	margin: var(--outer-margin) 0 0 0;
 	color: #333;
 	background: white;
 	font-style: italic;
-	border: 1px solid var(--color);
-	border-bottom-width: 0;
-	border-radius: 4px 4px 0 0;
+	border-top: 2px solid var(--color);
 	padding: .5em;
 }
 
 .blob-header .tree-entry {
-	padding: 0;
+	margin: 1em var(--outer-margin);
 }
 
 .blob-content {
@@ -390,32 +392,39 @@
 	white-space: pre;
 	font-family: var(--monospace-font-stack);
 	background: var(--blob-background);
-	padding: 1em;
-	border: 1px solid currentColor;
-	border-radius: 0 0 4px 4px;
-	font-size: 0.8em;
-	margin-bottom: 1em;
+	padding: 1ex 0;
+	font-size: 0.75em;
+	margin-bottom: var(--outer-margin);
+	border-bottom: 2px solid var(--color);
 	overflow: auto;
-	width: 100%;
+	font-weight: 300;
+}
+
+.blob-content__lines {
+	padding: 0;
+	margin: 0;
 }
 
 .blob-content__line {
 	counter-increment: blob-line;
 	line-height: 1.2em;
-	/* this will cause a visual bug after 9999 lines. fine with that */
 }
 
 .blob-content__line::before {
 	user-select: none;
 	content: counter(blob-line) " ";
 	color: var(--blob-line-numbers);
+	/* this will cause a visual bug after 999 lines. fine with that */
 	width: 5ex;
 	display: inline-block;
 	text-align: right;
+	font-size: 0.8em;
+	padding-right: 0.5ex;
+	vertical-align: middle;
 }
 
 .refs {
-	margin: 0 1em;
+	margin: 0 var(--outer-margin);
 }
 
 .refs-heading {
@@ -424,7 +433,7 @@
 }
 
 .commit {
-	margin: 1em;
+	margin: var(--outer-margin);
 }
 
 .commit-message {
@@ -435,6 +444,6 @@
 	font-size: 0.8em;
 	overflow: auto;
 	background: white;
-	padding: 1em;
-	margin: 1em;
+	padding: var(--outer-margin);
+	margin: var(--outer-margin);
 }

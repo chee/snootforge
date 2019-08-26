@@ -15,7 +15,12 @@ pub fn render(markup: Markup) -> String {
     format!("{}", markup.into_string())
 }
 
-pub fn head(title: &str) -> Markup {
+pub fn head(title: Option<String>) -> Markup {
+    static HEADER: &str = "snootforge";
+    let title = match title {
+        Some(title) => format!("{} | {}", title, HEADER),
+        None => HEADER.to_string(),
+    };
     html! {
         (DOCTYPE)
         html lang="en-ca";
@@ -28,7 +33,7 @@ pub fn head(title: &str) -> Markup {
         header.main-header {
             a.main-header__anchor href="/" {
                 .main-header__logo {}
-                .main-header__name {(title)}
+                .main-header__name {(HEADER)}
             }
         }
     }
@@ -36,14 +41,13 @@ pub fn head(title: &str) -> Markup {
 
 pub fn foot() -> Markup {
     html! {
-        link rel="stylesheet" href="/blob-theme.css";
-        script
-            defer="defer"
-            src="https://code.jquery.com/jquery-3.4.1.min.js"
-            integrity="sha256-CSXorXvZcTkaix6Yvo6HppcZGetbYMGWSFlBw8HfCJo="
-            crossorigin="anonymous" {}
-        script defer="defer" src="/javascript.js" {}
-        script defer="defer" src="/custom.js" {}
+        // script
+        //     defer="defer"
+        //     src="https://code.jquery.com/jquery-3.4.1.min.js"
+        //     integrity="sha256-CSXorXvZcTkaix6Yvo6HppcZGetbYMGWSFlBw8HfCJo="
+        //     crossorigin="anonymous" {}
+        // script defer="defer" src="/javascript.js" {}
+        // script defer="defer" src="/custom.js" {}
     }
 }
 
@@ -76,7 +80,7 @@ pub fn repo_summary(repo: &Repository, page: &Page) -> Markup {
                         (repo.name)
                     }
                 }
-                 @if let Some(description) = &repo.description {
+                @if let Some(description) = &repo.description {
                     p.repo-summary-description {
                         (description)
                     }
@@ -151,6 +155,11 @@ pub fn project_header(repo: &Repository, page: &Page) -> Markup {
                 (repo.name)
             }
         }
+        @if let Some(description) = &repo.description {
+            p.project-description {
+                (description)
+            }
+        }
         (project_nav(repo, page))
     )
 }
@@ -186,15 +195,9 @@ pub fn blob_header(directory: &str, directory_url: &str, file_name: &str) -> Mar
 
 pub fn blob(token: &str, blob: String, _page: &Page) -> Markup {
     let blob = highlight::highlight(token, &blob);
-    let lines = blob.lines();
     html! {
         pre.blob-content {
-            @for line in lines {
-                code.blob-content__line {
-                    (maud::PreEscaped(line))
-                    ("\n")
-                }
-            }
+            (maud::PreEscaped(&blob))
         }
     }
 }

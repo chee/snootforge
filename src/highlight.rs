@@ -1,12 +1,24 @@
 use syntect::dumps::from_binary;
-use syntect::html::{tokens_to_classed_spans, ClassStyle};
-use syntect::parsing::{ParseState, SyntaxReference, SyntaxSet};
+use syntect::easy::HighlightLines;
+use syntect::highlighting::ThemeSet;
+use syntect::html::{
+    append_highlighted_html_for_styled_line, start_highlighted_html_snippet, IncludeBackground,
+};
+use syntect::parsing::{SyntaxReference, SyntaxSet};
 use syntect::util::LinesWithEndings;
 
 lazy_static! {
     pub static ref SYNTAX_SET: SyntaxSet = {
-        let syntax_set: SyntaxSet = from_binary(include_bytes!("../syntaxes.packdump"));
+        let syntax_set: SyntaxSet = from_binary(include_bytes!("../syntect/syntaxes.packdump"));
         syntax_set
+    };
+    pub static ref THEME_SET: ThemeSet = {
+        let mut syntect_dir = std::path::PathBuf::from(file!());
+        syntect_dir.pop();
+        syntect_dir.pop();
+        syntect_dir.push("syntect");
+        let theme_set: ThemeSet = ThemeSet::load_from_folder(syntect_dir).unwrap();
+        theme_set
     };
 }
 
@@ -26,14 +38,29 @@ pub fn get_syntax<'string>(token: &str, string: &'string str) -> &'string Syntax
     })
 }
 
+// let mut html_generator = syntect::html::ClassedHTMLGenerator::new(syntax, &SYNTAX_SET);
+//     for line in LinesWithEndings::from(&string) {
+//         html_generator.parse_html_for_line(&line)
+//     }
+//     html_generator.finalize()
+
 pub fn highlight(token: &str, string: &str) -> String {
     let syntax = get_syntax(token, string);
-    let mut parse_state = ParseState::new(syntax);
-    let mut result = String::new();
+    let theme = &THEME_SET.themes["lychee"];
+    let mut highlighter = HighlightLines::new(syntax, theme);
+    let (_, bg) = start_highlighted_html_snippet(theme);
+    let mut output = String::from("<ol class=\"blob-content__lines\">");
+
     for line in LinesWithEndings::from(string) {
-        let ops = parse_state.parse_line(line, &SYNTAX_SET);
-        let (formatted_line, _) = tokens_to_classed_spans(line, ops.as_slice(), ClassStyle::Spaced);
-        result += &formatted_line;
+        let regions = highlighter.highlight(line, &SYNTAX_SET);
+        output += "<li class=\"blob-content__line\">";
+        append_highlighted_html_for_styled_line(
+            &regions[..],
+            IncludeBackground::IfDifferent(bg),
+            &mut output,
+        );
     }
-    return result;
+
+    output += "</ol>";
+    output
 }
