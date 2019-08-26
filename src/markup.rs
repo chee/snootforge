@@ -20,6 +20,7 @@ pub fn head(title: &str) -> Markup {
         (DOCTYPE)
         html lang="en-ca";
         meta charset="utf-8";
+        meta name="viewport" content="width=device-width, initial-scale=1";
         link rel="stylesheet" href="/normalize.css";
         link rel="stylesheet" href="/styles.css";
         link rel="stylesheet" href="/blob-theme.css";
