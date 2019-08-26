@@ -28,9 +28,9 @@ mod repository;
 mod tree;
 mod user;
 
-pub enum ContentType<'life> {
+pub enum ContentType {
     // content_type, data
-    Binary(&'life str, Vec<u8>),
+    Binary(String, Vec<u8>),
     // markup, optional title
     Markup(Markup, Option<String>),
 }
@@ -86,7 +86,7 @@ fn get_git_root() -> path::PathBuf {
     pathbuf
 }
 
-fn guess_mime(file_name: &str) -> mime::Mime {
+pub fn guess_mime(file_name: &str) -> mime::Mime {
     let file_path = path::PathBuf::from(file_name);
     match file_path.extension() {
         Some(extension) => match extension.to_str() {
@@ -107,7 +107,7 @@ fn guess_mime(file_name: &str) -> mime::Mime {
 fn make_file_response(file_name: &str, body: Vec<u8>) -> Response<Body> {
     let file_mime = guess_mime(file_name).to_string();
 
-    respond(Ok(ContentType::Binary(&file_mime, body)))
+    respond(Ok(ContentType::Binary(file_mime, body)))
 }
 
 fn check_static_exists(file_name: &str) -> Option<path::PathBuf> {
@@ -208,6 +208,7 @@ fn route(
                 "blob" => respond(page::blob(user_name, project_name, target, rest)),
                 "commit" => respond(page::commit(user_name, project_name, target, rest)),
                 "refs" => respond(page::refs(user_name, project_name, target, rest)),
+                "raw" => respond(page::raw(user_name, project_name, target, rest)),
                 _ => respond(Err(Missing::Nowhere)),
             }
         }

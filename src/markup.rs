@@ -164,7 +164,7 @@ pub fn project_header(repo: &Repository, page: &Page) -> Markup {
     )
 }
 
-pub fn blob_header(directory: &str, directory_url: &str, file_name: &str) -> Markup {
+pub fn blob_header(directory: &str, raw_url: &str, directory_url: &str, file_name: &str) -> Markup {
     let open_folder_icon = maud::PreEscaped("&#x1f4c2;");
     html! {
         header.blob-header {
@@ -179,14 +179,19 @@ pub fn blob_header(directory: &str, directory_url: &str, file_name: &str) -> Mar
                 }
             }
             h2.blob-header__heading {
-                @if directory.len() > 0 {
-                    span.blob-header__breadcrumb {
-                        (directory)
+                span.blob-header__path {
+                    @if directory.len() > 0 {
+                        span.blob-header__breadcrumb {
+                            (directory)
+                        }
+                        "/"
                     }
-                    "/"
+                    span.blob-header__filename {
+                        (file_name)
+                    }
                 }
-                span.blob-header__filename {
-                    (file_name)
+                a.blob-header__raw href=(raw_url) {
+                    "Raw"
                 }
             }
         }

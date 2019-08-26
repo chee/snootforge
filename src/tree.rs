@@ -137,7 +137,7 @@ impl TreeEntry<'_> {
 pub struct Tree<'a, 'b, 'c> {
     pub repo_url: String,
     pub subtree: bool,
-    tree: git2::Tree<'a>,
+    // tree: git2::Tree<'a>,
     repo: &'c Repository,
     pub entries: Vec<TreeEntry<'b>>,
     refname: String,
@@ -197,7 +197,7 @@ impl Tree<'_, '_, '_> {
         entries.sort_by(|a, b| a.kind.cmp(&b.kind));
         Ok(Tree {
             repo,
-            tree,
+            // tree,
             entries,
             repo_url,
             subtree: match subpath {
@@ -208,14 +208,12 @@ impl Tree<'_, '_, '_> {
         })
     }
 
-    pub fn get_blob(&self, target: Option<&path::PathBuf>) -> Result<String, Missing> {
+    pub fn get_blob(&self, target: Option<&path::PathBuf>) -> Result<Vec<u8>, Missing> {
         if let Some(target_path) = target {
             if let Ok(path) = self.tree.get_path(target_path) {
                 if let Ok(object) = path.to_object(&self.repo.git2) {
                     if let Ok(blob) = object.into_blob() {
-                        if let Ok(content) = std::str::from_utf8(blob.content()) {
-                            return Ok(content.to_owned());
-                        }
+                        return Ok(blob.content().to_vec());
                     }
                 }
             }

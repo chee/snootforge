@@ -4,10 +4,11 @@ use crate::repository::Repository;
 use crate::user::User;
 use crate::ContentType;
 
-use maud::{html, Markup};
+use maud::html;
 use std::cmp::Ordering;
 use std::{fs, path};
 
+// TODO get rid of this i think
 #[derive(PartialEq, Debug)]
 pub enum Page {
     Root,
@@ -17,7 +18,7 @@ pub enum Page {
     Blob,
     Commit,
     Refs,
-    Raw,
+    //Raw,
 }
 
 fn sort_repos(repos: &mut Vec<Repository>) {
@@ -33,7 +34,7 @@ fn sort_repos(repos: &mut Vec<Repository>) {
     })
 }
 
-pub fn root() -> Result<ContentType<'static>, Missing> {
+pub fn root() -> Result<ContentType, Missing> {
     let git_root = super::get_git_root();
     if git_root.is_dir() {
         let user_dirs = fs::read_dir(git_root).expect("git root read didn't work");
@@ -96,12 +97,12 @@ fn get_path(rest: Option<&[&str]>) -> Option<path::PathBuf> {
     }
 }
 
-pub fn tree<'name>(
-    name: &'name str,
+pub fn tree(
+    name: &str,
     project_name: &str,
     target: Option<&str>,
     rest: Option<&[&str]>,
-) -> Result<ContentType<'name>, Missing> {
+) -> Result<ContentType, Missing> {
     let repo = get_repo(name, project_name)?;
     let subpath = get_path(rest);
     let tree = match repo.tree(target, subpath.as_ref()) {
@@ -145,7 +146,7 @@ pub fn tree<'name>(
     ))
 }
 
-pub fn project<'name>(name: &'name str, project_name: &str) -> Result<ContentType<'name>, Missing> {
+pub fn project(name: &str, project_name: &str) -> Result<ContentType, Missing> {
     tree(name, project_name, None, None)
 }
 
@@ -157,12 +158,12 @@ fn get_log<'a>(repo: &'a Repository, reff: Option<&str>) -> Result<Vec<git2::Com
     }
 }
 
-pub fn log<'name>(
-    name: &'name str,
+pub fn log(
+    name: &str,
     project_name: &str,
     target: Option<&str>,
     _rest: Option<&[&str]>,
-) -> Result<ContentType<'name>, Missing> {
+) -> Result<ContentType, Missing> {
     let repo = get_repo(name, project_name)?;
     let log = get_log(&repo, target)?;
     let title = format!(
@@ -180,12 +181,12 @@ pub fn log<'name>(
     ))
 }
 
-pub fn commit<'name>(
-    name: &'name str,
+pub fn commit(
+    name: &str,
     project_name: &str,
     target: Option<&str>,
     _rest: Option<&[&str]>,
-) -> Result<ContentType<'name>, Missing> {
+) -> Result<ContentType, Missing> {
     let repo = get_repo(name, project_name)?;
     let log = get_log(&repo, None)?;
     let target = match target {
@@ -257,32 +258,41 @@ fn get_blob(
     repo: &Repository,
     target: Option<&str>,
     rest: Option<&[&str]>,
-) -> Result<String, Missing> {
+) -> Result<Vec<u8>, Missing> {
     let subpath = get_path(rest);
     let tree = repo.tree(target, None)?;
-    let blob = match tree.get_blob(subpath.as_ref()) {
-        Ok(blob) => blob,
-        _ => {
-            return Err(Missing::Elsewhere(format!(
-                "{}/tree/{}/{}",
-                repo.url(),
-                target.unwrap_or(""),
-                rest.unwrap_or(&[]).join("/")
-            )))
-        }
-    };
+    let blob = tree.get_blob(subpath.as_ref())?;
     Ok(blob)
 }
 
-pub fn blob<'name>(
-    name: &'name str,
+pub fn blob(
+    name: &str,
     project_name: &str,
     target: Option<&str>,
     rest: Option<&[&str]>,
-) -> Result<ContentType<'name>, Missing> {
+) -> Result<ContentType, Missing> {
     let repo = get_repo(name, project_name)?;
     let tree = repo.tree(target, None)?;
-    let blob = get_blob(&repo, target, rest)?.to_owned();
+    let tree_redirect = Err(Missing::Elsewhere(format!(
+        "{}/tree/{}/{}",
+        repo.url(),
+        target.unwrap_or(""),
+        rest.unwrap_or(&[]).join("/")
+    )));
+    let raw_url = format!(
+        "{}/raw/{}/{}",
+        repo.url(),
+        target.unwrap_or(""),
+        rest.unwrap_or(&[]).join("/")
+    );
+    let raw_redirect = Err(Missing::Elsewhere(raw_url.to_string()));
+    let blob = match get_blob(&repo, target, rest) {
+        Ok(blob) => match std::str::from_utf8(&blob) {
+            Ok(blob) => blob.to_owned(),
+            _ => return raw_redirect,
+        },
+        _ => return tree_redirect,
+    };
     let subpath = get_path(rest).unwrap();
     let file_extension = subpath
         .extension()
@@ -303,7 +313,7 @@ pub fn blob<'name>(
         html! {
             (markup::project_header(&repo, &Page::Blob))
                 article.blob {
-                    (markup::blob_header(directory.unwrap(), &directory_url.unwrap(), file_name.unwrap()))
+                    (markup::blob_header(directory.unwrap(), &raw_url, &directory_url.unwrap(), file_name.unwrap()))
                     (markup::blob(file_extension.unwrap(), blob, &Page::Blob))
                 }
         },
@@ -311,12 +321,12 @@ pub fn blob<'name>(
     ))
 }
 
-pub fn refs<'name>(
-    name: &'name str,
+pub fn refs(
+    name: &str,
     project_name: &str,
     _target: Option<&str>,
     _rest: Option<&[&str]>,
-) -> Result<ContentType<'name>, Missing> {
+) -> Result<ContentType, Missing> {
     let repo = get_repo(name, project_name)?;
     let refs = repo.refs()?;
     Ok(ContentType::Markup(
@@ -328,11 +338,23 @@ pub fn refs<'name>(
     ))
 }
 
-pub fn raw<'name>(
-    name: &'name str,
+pub fn raw(
+    name: &str,
     project_name: &str,
-    _target: Option<&str>,
-    _rest: Option<&[&str]>,
-) -> Result<ContentType<'name>, Missing> {
-    Err(Missing::Nowhere)
+    target: Option<&str>,
+    rest: Option<&[&str]>,
+) -> Result<ContentType, Missing> {
+    let repo = get_repo(name, project_name)?;
+    let blob = get_blob(&repo, target, rest)?.to_owned();
+    let missing = Err(Missing::Nowhere);
+    let file = match rest {
+        Some(rest) => match rest.last() {
+            Some(file) => file,
+            None => return missing,
+        },
+        None => return missing,
+    };
+    let mime_type: mime::Mime = super::guess_mime(file);
+    let mime = format!("{}", mime_type);
+    Ok(ContentType::Binary(mime, blob))
 }

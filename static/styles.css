@@ -125,6 +125,7 @@
 
 .readme pre code {
 	font-family: var(--monospace-font-stack);
+	font-weight: 300;
 }
 
 .readme :not(pre) code {
@@ -371,6 +372,10 @@
 	font-size: 0.8em;
 }
 
+.blob-header .tree-entry {
+	margin: 1em var(--outer-margin);
+}
+
 .blob-header__heading {
 	font-weight: normal;
 	font-size: 1em;
@@ -380,10 +385,22 @@
 	font-style: italic;
 	border-top: 2px solid var(--color);
 	padding: .5em;
+	display: grid;
+	grid-template-columns: 1fr auto;
+	align-items: center;
 }
 
-.blob-header .tree-entry {
-	margin: 1em var(--outer-margin);
+.blob-header__raw {
+	text-align: center;
+	border: 1px solid var(--nav-color);
+	padding: 0.2em;
+	color: var(--nav-color);
+	font-style: normal;
+	text-decoration: none;
+}
+
+.blob-header__raw:hover {
+	background: var(--nav-background);
 }
 
 .blob-content {
@@ -401,6 +418,7 @@
 }
 
 .blob-content__lines {
+	list-style-type: none;
 	padding: 0;
 	margin: 0;
 }
