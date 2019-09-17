@@ -186,7 +186,13 @@ fn route(
             // this will have a user and a project
             let user_name = uri_parts.get(0).unwrap();
             let project_name = uri_parts.get(1).unwrap();
-            respond(page::project(user_name, project_name))
+            if project_name.ends_with(".git") {
+                let uri_path = request.uri().path();
+                let dotgitless = &uri_path[0..uri_path.len() - 4];
+                respond(Err(Missing::Elsewhere(dotgitless.to_string())))
+            } else {
+                respond(page::project(user_name, project_name))
+            }
         }
         _ => {
             // this will have a user, a project, a page and maybe more (ref,
