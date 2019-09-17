@@ -207,14 +207,33 @@ fn route(
                 _ => Some(&uri_parts[4..]),
             };
 
-            match *page_name {
-                "tree" => respond(page::tree(user_name, project_name, target, rest)),
-                "log" => respond(page::log(user_name, project_name, target, rest)),
-                "blob" => respond(page::blob(user_name, project_name, target, rest)),
-                "commit" => respond(page::commit(user_name, project_name, target, rest)),
-                "refs" => respond(page::refs(user_name, project_name, target, rest)),
-                "raw" => respond(page::raw(user_name, project_name, target, rest)),
-                _ => respond(Err(Missing::Nowhere)),
+            if project_name.ends_with(".git") {
+                let dotgitless = &project_name[0..project_name.len() - 4];
+                let target_part = if let Some(target_part) = target {
+                    format!("/{}", target_part)
+                } else {
+                    "".to_string()
+                };
+                let rest_parts = if let Some(rest_parts) = rest {
+                    format!("/{}", rest_parts.join("/"))
+                } else {
+                    "".to_string()
+                };
+                let uri_path = format!(
+                    "/{}/{}/{}{}{}",
+                    user_name, dotgitless, page_name, target_part, rest_parts
+                );
+                respond(Err(Missing::Elsewhere(uri_path)))
+            } else {
+                match *page_name {
+                    "tree" => respond(page::tree(user_name, project_name, target, rest)),
+                    "log" => respond(page::log(user_name, project_name, target, rest)),
+                    "blob" => respond(page::blob(user_name, project_name, target, rest)),
+                    "commit" => respond(page::commit(user_name, project_name, target, rest)),
+                    "refs" => respond(page::refs(user_name, project_name, target, rest)),
+                    "raw" => respond(page::raw(user_name, project_name, target, rest)),
+                    _ => respond(Err(Missing::Nowhere)),
+                }
             }
         }
     };
