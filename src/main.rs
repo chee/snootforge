@@ -32,6 +32,7 @@ pub enum ContentType {
     Binary(String, Vec<u8>),
     // markup, optional title
     Markup(Markup, Option<String>),
+    PlainText(String),
 }
 
 fn respond(content: Result<ContentType, Missing>) -> Response<Body> {
@@ -54,10 +55,18 @@ fn respond(content: Result<ContentType, Missing>) -> Response<Body> {
             let response = Response::builder()
                 .header(header::CONTENT_LENGTH, body.len() as u64)
                 .header(header::CONTENT_TYPE, content_type)
-                .body(Body::from(body));
+                .body(Body::from(body))
+                .expect("Failed to construct the response");
             response
         }
-        .expect("Failed to construct the response"),
+        Ok(ContentType::PlainText(body)) => {
+            let response = Response::builder()
+                .header(header::CONTENT_LENGTH, body.len() as u64)
+                .header(header::CONTENT_TYPE, "text/plain")
+                .body(Body::from(body))
+                .expect("Failed to construct the response");
+            response
+        }
         Err(missing) => {
             let response = match missing {
                 // Missing::Sometime => Response::builder()
@@ -166,6 +175,7 @@ fn route(
     request: Request<Body>,
 ) -> impl futures::Future<Item = Response<Body>, Error = io::Error> + Send {
     let uri_path = path::PathBuf::from(request.uri().path());
+    println!("{}", request.uri());
     let uri_parts: Vec<&str> = uri_path
         .components()
         .map(|component: path::Component| component.as_os_str().to_str().unwrap())
@@ -207,33 +217,23 @@ fn route(
                 _ => Some(&uri_parts[4..]),
             };
 
-            if project_name.ends_with(".git") {
-                let dotgitless = &project_name[0..project_name.len() - 4];
-                let target_part = if let Some(target_part) = target {
-                    format!("/{}", target_part)
-                } else {
-                    "".to_string()
-                };
-                let rest_parts = if let Some(rest_parts) = rest {
-                    format!("/{}", rest_parts.join("/"))
-                } else {
-                    "".to_string()
-                };
-                let uri_path = format!(
-                    "/{}/{}/{}{}{}",
-                    user_name, dotgitless, page_name, target_part, rest_parts
-                );
-                respond(Err(Missing::Elsewhere(uri_path)))
+            let project_name = if project_name.ends_with(".git") {
+                &project_name[..project_name.len() - 4]
             } else {
-                match *page_name {
-                    "tree" => respond(page::tree(user_name, project_name, target, rest)),
-                    "log" => respond(page::log(user_name, project_name, target, rest)),
-                    "blob" => respond(page::blob(user_name, project_name, target, rest)),
-                    "commit" => respond(page::commit(user_name, project_name, target, rest)),
-                    "refs" => respond(page::refs(user_name, project_name, target, rest)),
-                    "raw" => respond(page::raw(user_name, project_name, target, rest)),
-                    _ => respond(Err(Missing::Nowhere)),
-                }
+                *project_name
+            };
+
+            match *page_name {
+                "tree" => respond(page::tree(user_name, project_name, target, rest)),
+                "log" => respond(page::log(user_name, project_name, target, rest)),
+                "blob" => respond(page::blob(user_name, project_name, target, rest)),
+                "commit" => respond(page::commit(user_name, project_name, target, rest)),
+                "refs" => respond(page::refs(user_name, project_name, target, rest)),
+                "raw" => respond(page::raw(user_name, project_name, target, rest)),
+                "info" => respond(page::info(user_name, project_name, target, rest)),
+                "HEAD" => respond(page::head(user_name, project_name, target, rest)),
+                "objects" => respond(page::objects(user_name, project_name, target, rest)),
+                _ => respond(Err(Missing::Nowhere)),
             }
         }
     };

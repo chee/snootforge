@@ -200,4 +200,35 @@ impl Repository {
         }
         Ok((tags, branches))
     }
+
+    // TODO: the one above and the one below are confusing to both exist. maybe top one should be called tags_and_branches?
+
+    pub fn references(&self) -> Result<git2::References, Missing> {
+        if let Ok(references) = self.git2.references() {
+            Ok(references)
+        } else {
+            Err(Missing::Nowhere)
+        }
+    }
+
+    pub fn object(&self, id: String) -> Result<git2::Object, Missing> {
+        if let Ok(oid) = git2::Oid::from_str(&id) {
+            if let Ok(object) = self.git2.find_object(oid, None) {
+                return Ok(object);
+            }
+        }
+        return Err(Missing::Nowhere);
+    }
+
+    pub fn odb_object(&self, id: String) -> Result<Vec<u8>, Missing> {
+        if let Ok(oid) = git2::Oid::from_str(&id) {
+            if let Ok(odb) = self.git2.odb() {
+                if let Ok(object) = &odb.read(oid) {
+                    let object_data = object.data();
+                    return Ok(object_data.to_vec());
+                }
+            }
+        }
+        return Err(Missing::Nowhere);
+    }
 }
