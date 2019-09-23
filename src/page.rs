@@ -402,6 +402,30 @@ pub fn info(
     )))
 }
 
+pub fn pack_info(
+    name: &str,
+    project_name: &str,
+    target: Option<&str>,
+    rest: Option<&[&str]>,
+) -> Result<ContentType, Missing> {
+    let mut packs_path = get_user_root(name);
+    packs_path.push(format!("{}.git", project_name));
+    packs_path.push("objects");
+    packs_path.push("packs");
+
+    let packs = fs::read_dir(packs_path).expect("i couldn't find the objects/paths directory :(");
+    let mut pack_list = String::new();
+    for pack in packs {
+        let pack: fs::DirEntry = pack.unwrap();
+        let name = pack.file_name();
+        let name = name.to_str().unwrap_or_default();
+        if name.ends_with(".pack") {
+            pack_list += &format!("P {}\n", name);
+        }
+    }
+    Ok(ContentType::PlainText(format!("{}\n", pack_list)))
+}
+
 pub fn objects(
     name: &str,
     project_name: &str,
@@ -413,6 +437,11 @@ pub fn objects(
     object_path.push("objects");
     object_path.push(target.unwrap());
     object_path.push(rest.unwrap_or(&[""])[0]);
+    let pack_info_path =
+        std::path::PathBuf::from(format!("{}/{}.git/objects/info/packs", name, project_name));
+    if object_path.eq(&pack_info_path) {
+        return pack_info(name, project_name, target, rest);
+    }
     if let Ok(content) = std::fs::read(&object_path) {
         return Ok(ContentType::Binary("application/zlib".to_string(), content));
     }

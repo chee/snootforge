@@ -74,7 +74,7 @@ fn respond(content: Result<ContentType, Missing>) -> Response<Body> {
                 //     .body(Body::from("sorry"))
                 //     .expect("failed"),
                 Missing::Nowhere => Response::builder()
-                    .status(StatusCode::PAYMENT_REQUIRED)
+                    .status(StatusCode::NOT_FOUND)
                     .body(Body::from("sorry"))
                     .expect("failed"),
                 Missing::Elsewhere(location) => Response::builder()
