@@ -432,18 +432,21 @@ pub fn objects(
     target: Option<&str>,
     rest: Option<&[&str]>,
 ) -> Result<ContentType, Missing> {
-    let mut object_path = get_user_root(name);
-    object_path.push(format!("{}.git", project_name));
-    object_path.push("objects");
-    object_path.push(target.unwrap());
-    object_path.push(rest.unwrap_or(&[""])[0]);
-    let pack_info_path =
-        std::path::PathBuf::from(format!("{}/{}.git/objects/info/packs", name, project_name));
-    if object_path.eq(&pack_info_path) {
+    let user_root = get_user_root(name);
+    let mut object_path = std::path::PathBuf::from(user_root);
+    let folder = target.unwrap();
+    let file = rest.unwrap_or(&[""])[0];
+    if folder == "info" && file == "packs" {
         return pack_info(name, project_name, target, rest);
     }
+    object_path.push(format!("{}.git", project_name));
+    object_path.push("objects");
+    object_path.push(folder);
+    object_path.push(file);
+
     if let Ok(content) = std::fs::read(&object_path) {
         return Ok(ContentType::Binary("application/zlib".to_string(), content));
     }
+
     Err(Missing::Nowhere)
 }
