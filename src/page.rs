@@ -405,8 +405,8 @@ pub fn info(
 pub fn pack_info(
     name: &str,
     project_name: &str,
-    target: Option<&str>,
-    rest: Option<&[&str]>,
+    _target: Option<&str>,
+    _rest: Option<&[&str]>,
 ) -> Result<ContentType, Missing> {
     let mut packs_path = get_user_root(name);
     packs_path.push(format!("{}.git", project_name));
