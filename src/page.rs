@@ -413,7 +413,7 @@ pub fn pack_info(
     packs_path.push("objects");
     packs_path.push("packs");
 
-    let packs = fs::read_dir(packs_path).expect("i couldn't find the objects/paths directory :(");
+    let packs = fs::read_dir(packs_path).expect("i couldn't find the objects/packs directory :(");
     let mut pack_list = String::new();
     for pack in packs {
         let pack: fs::DirEntry = pack.unwrap();
