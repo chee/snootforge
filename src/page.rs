@@ -411,9 +411,9 @@ pub fn pack_info(
     let mut packs_path = get_user_root(name);
     packs_path.push(format!("{}.git", project_name));
     packs_path.push("objects");
-    packs_path.push("packs");
+    packs_path.push("pack");
 
-    let packs = fs::read_dir(packs_path).expect("i couldn't find the objects/packs directory :(");
+    let packs = fs::read_dir(packs_path).expect("i couldn't find the objects/pack directory :(");
     let mut pack_list = String::new();
     for pack in packs {
         let pack: fs::DirEntry = pack.unwrap();
