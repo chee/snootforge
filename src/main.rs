@@ -248,18 +248,24 @@ fn get_args() -> Vec<String> {
 fn main() -> Result<(), io::Error> {
     let args = get_args();
 
-    let should_sock = args.get(2).is_none();
+    let port = args.get(2);
 
-    if should_sock {
-        let sock_path = "./sock";
-        fs::remove_file(sock_path).unwrap_or_default();
-        let server = hyperlocal::server::Server::bind(sock_path, || service_fn(route))?;
-        server.run()?;
-    } else {
-        let addr = ([127, 0, 0, 1], 3000).into();
-        let server = hyper::Server::bind(&addr).serve(|| service_fn(route));
-        hyper::rt::run(server.map_err(|_| {}));
+    match port {
+        Some(port) => {
+            let port: u16 = port.parse().unwrap_or(3000);
+            let addr = ([127, 0, 0, 1], port).into();
+            let server = hyper::Server::bind(&addr).serve(|| service_fn(route));
+            eprintln!("Listening on localhost:{}", port);
+            hyper::rt::run(server.map_err(|e| panic!("oh fuck: {}", e)));
+        }
+        None => {
+            let sock_path = "./sock";
+            fs::remove_file(sock_path).unwrap_or_default();
+            let server = hyperlocal::server::Server::bind(sock_path, || service_fn(route))?;
+            eprintln!("Listening on {}", sock_path);
+            server.run()?;
+        }
     }
 
-    Ok(())
+    Err(io::Error::from(io::ErrorKind::Other))
 }
