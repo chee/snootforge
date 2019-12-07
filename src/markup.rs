@@ -458,21 +458,32 @@ pub fn commit<'a>(commit: &git2::Commit, diff: Option<git2::Diff>) -> Markup {
     let mut files: Vec<String> = vec![];
     let mut current_diff: String = "".to_string();
     let mut last_file_id: git2::Oid = git2::Oid::zero();
+    let mut num_lines: u16 = 0;
+    let mut too_big: bool = false;
+    // TODO be better
     if let Some(diff) = &diff {
         diff.print(git2::DiffFormat::Patch, |delta, _hunk, line| {
             let new_file_id = delta.new_file().id();
             if new_file_id != last_file_id {
                 files.push(current_diff.clone());
                 current_diff.clear();
+                last_file_id = new_file_id;
             }
+            // TODO less expensive stuff here
             current_diff = format!("{}{}", current_diff, line.origin().to_string());
             current_diff = format!(
                 "{}{}",
                 current_diff,
                 std::str::from_utf8(line.content()).unwrap_or("")
             );
-            last_file_id = new_file_id;
-            true
+            // TODO something better than this
+            num_lines = num_lines + 1;
+            if num_lines > 12345 {
+                too_big = true;
+                false
+            } else {
+                true
+            }
         })
         .unwrap_or_default();
     }
@@ -484,6 +495,22 @@ pub fn commit<'a>(commit: &git2::Commit, diff: Option<git2::Diff>) -> Markup {
             }
             .commit-id {
                 (commit.id())
+            }
+            @if too_big {
+                .commit-warning {
+                    p {
+                        ("Hey, sorry. This commit is way too big so the diff has been truncated.")
+                    }
+                    p {
+                        ("Feel free to clone this repo and run ")
+
+                        code {
+                            ("`git show ") (commit.id()) ("`")
+                        }
+
+                        ("to make sure you see everything")
+                    }
+                }
             }
             @if files.len() > 1 {
                 @for file in &files[1..] {
