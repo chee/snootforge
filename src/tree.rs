@@ -44,7 +44,6 @@ pub struct TreeEntry<'a> {
     pub kind: TreeEntryKind,
     pub url: Option<String>,
     blob: Option<git2::Blob<'a>>,
-    tree: Option<git2::Tree<'a>>,
     last_commit: Option<git2::Commit<'a>>,
 }
 
@@ -58,21 +57,15 @@ impl TreeEntry<'_> {
             name,
             kind: TreeEntryKind::Blob,
             blob: Some(blob),
-            tree: None,
             url: None,
             last_commit,
         }
     }
 
-    pub fn from_tree<'a>(
-        name: String,
-        last_commit: Option<git2::Commit<'a>>,
-        tree: git2::Tree<'a>,
-    ) -> TreeEntry<'a> {
+    pub fn from_tree<'a>(name: String, last_commit: Option<git2::Commit<'a>>) -> TreeEntry<'a> {
         TreeEntry {
             name,
             kind: TreeEntryKind::Tree,
-            tree: Some(tree),
             blob: None,
             url: None,
             last_commit,
@@ -176,10 +169,7 @@ impl Tree<'_, '_, '_> {
                         }
                     }
                     match object.kind() {
-                        Some(git2::ObjectType::Tree) => {
-                            let tree = object.into_tree().unwrap();
-                            TreeEntry::from_tree(name, last_commit, tree)
-                        }
+                        Some(git2::ObjectType::Tree) => TreeEntry::from_tree(name, last_commit),
                         Some(git2::ObjectType::Blob) => {
                             let blob = object.into_blob().unwrap();
                             TreeEntry::from_blob(name, last_commit, blob)

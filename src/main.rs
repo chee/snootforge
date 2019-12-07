@@ -68,6 +68,7 @@ fn respond(content: Result<ContentType, Missing>) -> Response<Body> {
             response
         }
         Err(missing) => {
+            eprintln!("missing {:?}", missing);
             let response = match missing {
                 // Missing::Sometime => Response::builder()
                 //     .status(StatusCode::NOT_IMPLEMENTED)

@@ -33,7 +33,7 @@ impl User {
             let path = bare.path();
             let repo = Repository::open(&name, &path);
             if let Err(error) = repo {
-                println!("not including {:?} because {:?}", bare, error);
+                eprintln!("not including {:?} because {:?}", bare, error);
                 continue;
             }
             repos.push(repo.unwrap());
