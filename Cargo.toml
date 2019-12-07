@@ -15,5 +15,9 @@ hyper-router = "0.5"
 hyperlocal = "0.6"
 maud = "0.21"
 mime = "0.3"
-syntect = "3"
 lazy_static = "1"
+
+[dependencies.syntect]
+version = "3"
+default-features = false
+features = ["parsing", "html", "dump-load"]
